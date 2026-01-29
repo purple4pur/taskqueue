@@ -19,24 +19,42 @@ while true; do
     JOB_LINE=$(sed -n "${LINE_NUM}p" "$JOBS_FILE")
     JOB_COMMAND=$(echo "$JOB_LINE" | sed -e 's#^\[ \] ##')
     SAFE_JOB_COMMAND=$(safe_quote "$JOB_COMMAND")
-    EXECUTING_JOB_LINE="[-] $SAFE_JOB_COMMAND [$$]"
+    START_DATE=$(date +%m/%d\ %H:%M)
+    EXECUTING_JOB_LINE="[-] $SAFE_JOB_COMMAND [$START_DATE] [$$]"
 
     # Replace the line with the executing status
     sed -i "${LINE_NUM}s#.*#$EXECUTING_JOB_LINE#" "$JOBS_FILE"
 
     release_lock
 
+    # Record start time
+    START=$(date +%s.%N)
+
     # Execute the command
     eval "$JOB_COMMAND"
     STATUS=$?
 
+    # Calculate elapsed time
+    END=$(date +%s.%N)
+    ELAPSED=$(echo "$END - $START" | bc)
+    HOURS=$(echo "$ELAPSED/3600" | bc)
+    MINUTES=$(echo "($ELAPSED%3600)/60" | bc)
+    SECONDS=$(echo "$ELAPSED%60" | bc | awk '{printf "%.0f", $1}')
+    if [ $HOURS -gt 0 ]; then
+        ELAPSED="${HOURS}h${MINUTES}m${SECONDS}s"
+    elif [ $MINUTES -gt 0 ]; then
+        ELAPSED="${MINUTES}m${SECONDS}s"
+    else
+        ELAPSED="${SECONDS}s"
+    fi
+
     # Update the job status based on execution result
     if [ $STATUS -eq 0 ]; then
         # Update the job status to completed
-        sed -i "/$$/s#.*#[x] $SAFE_JOB_COMMAND#" "$JOBS_FILE"
+        sed -i "/$$/s#.*#[x] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
     else
         # Update the job status to failed
-        sed -i "/$$/s#.*#[!] $SAFE_JOB_COMMAND#" "$JOBS_FILE"
+        sed -i "/$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
     fi
 done
 
