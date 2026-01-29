@@ -6,31 +6,54 @@
 
 [A Job Queue in 20 Lines of Bash](https://maximerobeyns.com/fragments/job_queue)
 
-TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均完全采用了 Maxime 的方案和代码实现，轻量、极简且功能完善。TaskQueue 主要的工作是增强对于队列和 Runner 的管理。
+TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均完全采用了 Maxime 的方案和代码实现，轻量、极简且功能完善。TaskQueue 主要的工作是增强对队列和 Runner 的管理。
+
+**建议所有人在使用本工具前都阅读恩师原文。**
 
 恩师其二：DeepSeek (via 腾讯元宝)，95% 的代码都由 DeepSeek 完成。
+
+### `tasks.txt`
+
+记录任务队列及状态的文本文件，有下列几种状态：
+
+- `[ ] <命令>`: 等待被执行的任务
+- `[-] <命令> [runner_pid]`: 正在被某个 Runner 执行的任务
+- `[x] <命令>`: 已结束的任务，正常退出
+- `[!] <命令>`: 已结束的任务，异常退出
+
+一般来说不应该手动编辑此文件，请用 `tq add` / `tq run` / `tq clean` 来管理。
 
 ### 安装
 
 1. `git clone` 或下载本仓库到本地
-2. `chmod +x install.sh`
-3. `./install.sh` - 必要文件将会安装到 `$HOME/opt/taskqueue`
-4. `echo 'alias tq="bash $HOME/opt/taskqueue/taskqueue.sh"' >> ~/.bashrc`
-5. `source ~/.bashrc`
-6. `tq help`
+2. `bash ./install.sh` - 必要文件将会安装到 `$HOME/opt/taskqueue`
+3. `echo 'alias tq="bash $HOME/opt/taskqueue/taskqueue.sh"' >> ~/.bashrc`
+4. `source ~/.bashrc`
+5. `tq help`
 
 ### 用法
 
 可用命令:
 
 ```
-tq list        - 显示所有任务状态
+tq, tq list    - 显示所有任务状态
 tq add <命令>  - 添加任务到队列（在当前路径下执行）
-tq run         - 启动一个新的 Runner
+tq run         - 启动一个新的运行器
 tq clean       - 清理已完成的任务
 tq help        - 显示此帮助信息
 ```
 
-例子：
+示例：
 
-TODO
+1. 添加一个测试任务:
+   `tq add 'echo \"Hello from task queue\"'`
+
+2. 启动运行器:
+   `tq run`
+
+3. 查看任务状态:
+   `tq`
+
+### 小贴士
+
+你可以多次调用 `tq run` 来增加并行度！

@@ -17,7 +17,7 @@ tq_list() {
     return 0
 }
 
-# 安全添加任务到队列
+# 添加任务到队列
 tq_add() {
     if [ $# -eq 0 ]; then
         echo -e "${RED}错误: 请提供要执行的命令${NC}" >&2
@@ -25,7 +25,7 @@ tq_add() {
         return 1
     fi
 
-    # 安全获取当前工作目录
+    # 获取当前工作目录
     local current_dir
     current_dir=$(pwd) || {
         echo -e "${RED}错误: 无法获取当前目录${NC}" >&2
@@ -60,19 +60,19 @@ tq_add() {
 
     release_lock
 
-    echo -e "${GREEN}✓ 任务已安全添加到队列${NC}"
+    echo -e "${GREEN}✓ 任务已添加到队列${NC}"
     echo -e "   目录: $current_dir"
     echo -e "   命令: $command"
 }
 
-# 安全启动新的运行器
+# 启动新的运行器
 tq_run() {
     bash "$RUNNER_SCRIPT"
 }
 
-# 安全清理已完成的任务
+# 清理已完成的任务
 tq_clean() {
-    echo -e "${CYAN}正在安全清理已完成的任务...${NC}"
+    echo -e "${CYAN}正在清理已完成的任务...${NC}"
 
     if [ ! -f "$JOBS_FILE" ]; then
         echo -e "${YELLOW}任务文件不存在${NC}"
@@ -111,7 +111,7 @@ tq_clean() {
     release_lock
 
     echo -e "${GREEN}✓ 清理完成${NC}"
-    echo -e "   已移除: $removed 个已完成/失败任务"
+    echo -e "   已移除: $removed 个已结束任务"
 }
 
 # 显示帮助信息
@@ -119,7 +119,7 @@ tq_help() {
     echo -e "${CYAN}=== TaskQueue (tq) ===${NC}"
     echo ""
     echo -e "${GREEN}可用命令:${NC}"
-    echo "  tq list        - 显示所有任务状态"
+    echo "  tq, tq list    - 显示所有任务状态"
     echo "  tq add <命令>  - 添加任务到队列（在当前路径下执行）"
     echo "  tq run         - 启动一个新的运行器"
     echo "  tq clean       - 清理已完成的任务"
@@ -128,7 +128,6 @@ tq_help() {
     echo -e "${MAGENTA}配置文件:${NC}"
     echo "  任务文件:    $JOBS_FILE"
     echo "  运行器脚本:  $RUNNER_SCRIPT"
-    echo "  锁文件:      $LOCK_FILE"
     echo ""
     echo -e "${BLUE}示例:${NC}"
     echo "  tq add 'find . -name \"*.py\"'"

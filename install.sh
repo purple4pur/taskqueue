@@ -11,7 +11,7 @@ echo ""
 
 # 基础目录
 BASE_DIR="$HOME/opt/taskqueue"
-SCRIPTS=("taskqueue.sh" "runner.sh" "common.sh" "install.sh")
+SCRIPTS=("taskqueue.sh" "runner.sh" "common.sh")
 
 # 创建必要的目录
 echo "创建目录结构..."
@@ -31,38 +31,22 @@ echo "复制脚本到 $BASE_DIR..."
 cp taskqueue.sh "$BASE_DIR/"
 cp runner.sh "$BASE_DIR/"
 cp common.sh "$BASE_DIR/"
-cp install.sh "$BASE_DIR/"
 
 # 设置执行权限
 echo "设置执行权限..."
 chmod +x "$BASE_DIR/taskqueue.sh"
 chmod +x "$BASE_DIR/runner.sh"
 chmod +x "$BASE_DIR/common.sh"
-chmod +x "$BASE_DIR/install.sh"
 
 # 创建任务文件（如果不存在）
 TASKS_FILE="$BASE_DIR/tasks.txt"
 if [ ! -f "$TASKS_FILE" ]; then
     echo "创建任务文件: $TASKS_FILE"
     touch "$TASKS_FILE"
-    echo "# 格式: [状态] 命令" >> "$TASKS_FILE"
-    echo "# 状态: [ ]=等待中, [-]=执行中, [x]=成功, [!]=失败" >> "$TASKS_FILE"
-    echo "# 示例:" >> "$TASKS_FILE"
-    echo "# [ ] echo 'Hello, World!'" >> "$TASKS_FILE"
-    echo "# [x] ls -la" >> "$TASKS_FILE"
+    chmod 0600 "$TASKS_FILE"
 else
     echo "任务文件已存在: $TASKS_FILE"
 fi
-
-# 创建别名配置文件
-ALIAS_FILE="$BASE_DIR/aliases.sh"
-echo "创建别名配置文件: $ALIAS_FILE"
-cat > "$ALIAS_FILE" << 'EOF'
-# TaskQueue alias
-alias tq="bash $HOME/opt/taskqueue/taskqueue.sh"
-EOF
-
-chmod +x "$ALIAS_FILE"
 
 # 安装完成信息
 echo ""
@@ -77,11 +61,10 @@ echo "  taskqueue.sh  - 主功能"
 echo "  runner.sh     - 任务运行器"
 echo "  tasks.txt     - 任务队列文件"
 echo "  common.sh     - 公共配置及功能"
-echo "  aliases.sh    - 别名配置"
 echo ""
 echo "快速开始:"
-echo "1. 添加别名到您的shell配置:"
-echo "   echo 'source $BASE_DIR/aliases.sh' >> ~/.bashrc"
+echo "1. 添加别名到您的 shell 配置:"
+echo "   echo 'alias tq=\"bash \$HOME/opt/taskqueue/taskqueue.sh\"' >> ~/.bashrc"
 echo "   source ~/.bashrc"
 echo ""
 echo "2. 添加一个测试任务:"
