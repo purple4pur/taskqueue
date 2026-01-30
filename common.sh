@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 
 # 配置文件路径
-readonly JOBS_FILE="$HOME/opt/taskqueue/tasks.txt"
-readonly RUNNER_SCRIPT="$HOME/opt/taskqueue/runner.sh"
-readonly LOCK_FILE="$HOME/opt/taskqueue/.lock"
+readonly BASE_DIR="$HOME/opt/taskqueue"
+readonly JOBS_FILE="$BASE_DIR/tasks.txt"
+readonly RUNNER_SCRIPT="$BASE_DIR/runner.sh"
+readonly LOCK_FILE="$BASE_DIR/.lock"
 
 # 颜色定义
 readonly RED='\033[0;31m'

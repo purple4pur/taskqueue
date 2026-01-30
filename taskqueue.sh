@@ -13,8 +13,30 @@ tq_list() {
         return 0
     fi
 
-    cat $JOBS_FILE
-    return 0
+    # 读取并显示所有任务
+    local line_num=1
+    while IFS= read -r line || [ -n "$line" ]; do
+        local status="未知"
+        local task_info=""
+
+        # 解析任务状态
+        if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
+            status="${CYAN}队列${NC}"
+        elif [[ "$line" =~ ^\[\?\] ]]; then
+            status="${MAGENTA}暂停${NC}"
+        elif [[ "$line" =~ ^\[-\] ]]; then
+            status="${YELLOW}运行${NC}"
+        elif [[ "$line" =~ ^\[x\] ]]; then
+            status="${GREEN}成功${NC}"
+        elif [[ "$line" =~ ^\[!\] ]]; then
+            status="${RED}失败${NC}"
+        else
+            status="未知"
+        fi
+
+        # 显示任务信息
+        echo -e "$status $line"
+    done < "$JOBS_FILE"
 }
 
 # 添加任务到队列
