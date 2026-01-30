@@ -33,7 +33,7 @@ while true; do
     START=$(date +%s.%N)
 
     # Execute the command
-    eval "$JOB_COMMAND"
+    bash -c "$JOB_COMMAND"
     STATUS=$?
 
     # Calculate elapsed time
