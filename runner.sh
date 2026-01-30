@@ -20,14 +20,14 @@ while true; do
     JOB_COMMAND=$(echo "$JOB_LINE" | sed -e 's#^\[ \] ##')
     SAFE_JOB_COMMAND=$(safe_quote "$JOB_COMMAND")
     START_DATE=$(date +%m/%d\ %H:%M)
-    EXECUTING_JOB_LINE="[-] $SAFE_JOB_COMMAND [$START_DATE] [$$]"
+    EXECUTING_JOB_LINE="[-] $SAFE_JOB_COMMAND [$START_DATE] [R:$$]"
 
     # Replace the line with the executing status
     sed -i "${LINE_NUM}s#.*#$EXECUTING_JOB_LINE#" "$JOBS_FILE"
 
     release_lock
 
-    echo -e "${CYAN}[Runner:$$] $JOB_COMMAND${NC}"
+    echo -e "${CYAN}[R:$$] $JOB_COMMAND${NC}"
 
     # Record start time
     START=$(date +%s.%N)
@@ -53,13 +53,13 @@ while true; do
     # Update the job status based on execution result
     if [ $STATUS -eq 0 ]; then
         # Update the job status to completed
-        sed -i "/$$/s#.*#[x] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
-        echo -e "${GREEN}[Runner:$$] Job finished successfully.${NC}"
+        sed -i "/R:$$/s#.*#[x] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
+        echo -e "${GREEN}[R:$$] Job finished successfully.${NC}"
     else
         # Update the job status to failed
-        sed -i "/$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
-        echo -e "${RED}[Runner:$$] Job finished with code $STATUS.${NC}"
+        sed -i "/R:$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
+        echo -e "${RED}[R:$$] Job finished with code $STATUS.${NC}"
     fi
 done
 
-echo -e "${CYAN}[Runner:$$] All jobs are completed.${NC}"
+echo -e "${CYAN}[R:$$] All jobs are completed.${NC}"
