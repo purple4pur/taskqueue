@@ -141,7 +141,7 @@ tq_clean() {
     }
 
     # 只保留非完成状态的任务
-    grep -v "^\[[x!]\]" "$JOBS_FILE" > "$temp_file"
+    grep -v "^\[[x!]\] " "$JOBS_FILE" > "$temp_file"
 
     local original_count
     original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
@@ -162,6 +162,55 @@ tq_clean() {
     echo -e "   已移除: $removed 个已结束任务"
 }
 
+# 清理所有非运行中的任务
+tq_cleanall() {
+    echo -e "${CYAN}正在清理所有非运行中的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 安全过滤任务
+    local temp_file
+    temp_file=$(mktemp) || {
+        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    # 只保留运行中的任务
+    grep -v "^\[[ ?x!]\] " "$JOBS_FILE" > "$temp_file"
+
+    local original_count
+    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
+    local new_count
+    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
+    local removed=$((original_count - new_count))
+
+    # 安全替换原文件
+    mv "$temp_file" "$JOBS_FILE" || {
+        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    release_lock
+
+    echo -e "${GREEN}✓ 清理完成${NC}"
+    echo -e "   已移除: $removed 个非运行中任务"
+}
+
+# 输出任务队列文件路径
+tq_file() {
+    echo "$JOBS_FILE"
+}
+
 # 显示帮助信息
 tq_help() {
     echo -e "${CYAN}=== TaskQueue (tq) ===${NC}"
@@ -173,6 +222,8 @@ tq_help() {
     echo "  tq pause       - 暂停未开始的任务"
     echo "  tq resume      - 恢复已暂停的任务到队列"
     echo "  tq clean       - 清理已完成的任务"
+    echo "  tq cleanall    - 清理所有非运行中的任务"
+    echo "  tq file        - 输出任务队列文件路径"
     echo "  tq help        - 显示此帮助信息"
     echo ""
     echo -e "${MAGENTA}配置文件:${NC}"
@@ -182,7 +233,6 @@ tq_help() {
     echo -e "${BLUE}示例:${NC}"
     echo "  tq add 'find . -name \"*.py\"'"
     echo "  tq run"
-    echo "  tq list"
 }
 
 # 主函数
@@ -209,6 +259,12 @@ main() {
             ;;
         "clean")
             tq_clean
+            ;;
+        "cleanall")
+            tq_cleanall
+            ;;
+        "file")
+            tq_file
             ;;
         "help")
             tq_help

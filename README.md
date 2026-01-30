@@ -16,7 +16,8 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均完全采用�
 
 记录任务队列及状态的文本文件，有下列几种状态：
 
-- `[ ] <命令>` : 等待被执行的任务
+- `[ ] <命令>` : 待执行的任务
+- `[?] <命令>` : 暂停中的排队任务，接下来不会被运行
 - `[-] <命令> [start_date] [runner_pid]` : 正在被某个 Runner 执行的任务
 - `[x] <命令> [start_date] [elapsed_time]` : 已结束的任务，正常退出
 - `[!] <命令> [start_date] [elapsed_time]` : 已结束的任务，异常退出
@@ -44,6 +45,8 @@ tq run         - 启动一个新的运行器
 tq pause       - 暂停未开始的任务
 tq resume      - 恢复已暂停的任务到队列
 tq clean       - 清理已完成的任务
+tq cleanall    - 清理所有非运行中的任务
+tq file        - 输出任务队列文件路径
 tq help        - 显示此帮助信息
 ```
 
