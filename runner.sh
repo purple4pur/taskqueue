@@ -27,6 +27,8 @@ while true; do
 
     release_lock
 
+    echo -e "${CYAN}[Runner:$$] $JOB_COMMAND${NC}"
+
     # Record start time
     START=$(date +%s.%N)
 
@@ -52,10 +54,12 @@ while true; do
     if [ $STATUS -eq 0 ]; then
         # Update the job status to completed
         sed -i "/$$/s#.*#[x] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
+        echo -e "${GREEN}[Runner:$$] Job finished successfully.${NC}"
     else
         # Update the job status to failed
         sed -i "/$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
+        echo -e "${RED}[Runner:$$] Job finished with code $STATUS.${NC}"
     fi
 done
 
-echo "All jobs are completed."
+echo -e "${CYAN}[Runner:$$] All jobs are completed.${NC}"
