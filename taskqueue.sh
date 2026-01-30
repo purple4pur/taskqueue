@@ -70,6 +70,54 @@ tq_run() {
     bash "$RUNNER_SCRIPT"
 }
 
+# 暂停未开始的任务
+tq_pause() {
+    echo -e "${CYAN}正在暂停未开始的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 更改未开始任务状态
+    local unstarted=$(grep -Ec '^\[ \] ' "$JOBS_FILE")
+    sed -Ei 's#^\[ \] #[?] #' "$JOBS_FILE"
+
+    release_lock
+
+    echo -e "${GREEN}✓ 暂停完成${NC}"
+    echo -e "   已暂停: $unstarted 个未开始任务"
+}
+
+# 恢复已暂停的任务到队列
+tq_resume() {
+    echo -e "${CYAN}正在恢复已暂停的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 更改已暂停任务状态
+    local paused=$(grep -Ec '^\[\?\] ' "$JOBS_FILE")
+    sed -Ei 's#^\[\?\] #[ ] #' "$JOBS_FILE"
+
+    release_lock
+
+    echo -e "${GREEN}✓ 恢复完成${NC}"
+    echo -e "   已恢复: $paused 个已暂停任务"
+}
+
 # 清理已完成的任务
 tq_clean() {
     echo -e "${CYAN}正在清理已完成的任务...${NC}"
@@ -122,6 +170,8 @@ tq_help() {
     echo "  tq, tq list    - 显示所有任务状态"
     echo "  tq add <命令>  - 添加任务到队列（在当前路径下执行）"
     echo "  tq run         - 启动一个新的运行器"
+    echo "  tq pause       - 暂停未开始的任务"
+    echo "  tq resume      - 恢复已暂停的任务到队列"
     echo "  tq clean       - 清理已完成的任务"
     echo "  tq help        - 显示此帮助信息"
     echo ""
@@ -150,6 +200,12 @@ main() {
         "run")
             shift
             tq_run "${1:-1}"
+            ;;
+        "pause")
+            tq_pause
+            ;;
+        "resume")
+            tq_resume
             ;;
         "clean")
             tq_clean
