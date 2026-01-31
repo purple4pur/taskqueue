@@ -3,6 +3,11 @@
 source $HOME/opt/taskqueue/common.sh
 
 while true; do
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}[R:$$] Tasks not found.${NC}"
+        break
+    fi
+
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
@@ -12,6 +17,7 @@ while true; do
 
     # Check if there are any un-executed jobs left
     if [ -z "$LINE_NUM" ]; then
+        release_lock
         break
     fi
 
@@ -50,6 +56,10 @@ while true; do
         ELAPSED="${SECONDS}s"
     fi
 
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
     # Update the job status based on execution result
     if [ $STATUS -eq 0 ]; then
         # Update the job status to completed
@@ -60,6 +70,8 @@ while true; do
         sed -i "/R:$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
         echo -e "${RED}[R:$$] Job finished with code $STATUS.${NC}"
     fi
+
+    release_lock
 done
 
 echo -e "${CYAN}[R:$$] All jobs are completed.${NC}"
