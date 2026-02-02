@@ -14,24 +14,25 @@ tq_list() {
     fi
 
     # 读取并显示所有任务
-    local line_num=1
+    local queue_order=1
     while IFS= read -r line || [ -n "$line" ]; do
         local status="未知"
         local task_info=""
 
         # 解析任务状态
         if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
-            status="${CYAN}队列${NC}"
+            status=$(printf "${CYAN}%3s${NC}" "Q$queue_order")
+            ((queue_order++))
         elif [[ "$line" =~ ^\[\?\] ]]; then
-            status="${MAGENTA}暂停${NC}"
+            status="${MAGENTA}PAU${NC}"
         elif [[ "$line" =~ ^\[-\] ]]; then
-            status="${YELLOW}运行${NC}"
+            status="${YELLOW}RUN${NC}"
         elif [[ "$line" =~ ^\[x\] ]]; then
-            status="${GREEN}成功${NC}"
-        elif [[ "$line" =~ ^\[!\] ]]; then
-            status="${RED}失败${NC}"
+            status="${GREEN}SUC${NC}"
+        elif [[ "$line" =~ ^\[\!\] ]]; then
+            status="${RED}FAI${NC}"
         else
-            status="未知"
+            status="${GRAY}UNK${NC}"
         fi
 
         # 彩色输出开始时间、运行器ID、消耗时间

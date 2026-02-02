@@ -13,6 +13,7 @@ readonly YELLOW='\033[1;33m'
 readonly BLUE='\033[0;34m'
 readonly MAGENTA='\033[0;35m'
 readonly CYAN='\033[0;36m'
+readonly GRAY='\033[0;90m'
 readonly NC='\033[0m' # No Color
 
 # 安全引用字符串
