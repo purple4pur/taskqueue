@@ -34,6 +34,11 @@ tq_list() {
             status="未知"
         fi
 
+        # 彩色输出开始时间、运行器ID、消耗时间
+        line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\])#${SED_MAGENTA}\\1${SED_NC}#")
+        line=$(echo "$line" | sed -E "s#(\\[R:[0-9]+\\])#${SED_YELLOW}\\1${SED_NC}#")
+        line=$(echo "$line" | sed -E "s#(\\[[0-9hm]+s\\])#${SED_CYAN}\\1${SED_NC}#")
+
         # 显示任务信息
         echo -e "$status $line"
     done < "$JOBS_FILE"
