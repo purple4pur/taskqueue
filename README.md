@@ -12,24 +12,24 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均完全采用�
 
 恩师其二：DeepSeek (via 腾讯元宝)，95% 的代码都由 DeepSeek 完成。
 
-### `tasks.txt`
+### 队列文件 `tasks.txt`
 
-记录任务队列及状态的文本文件，有下列几种状态：
+记录任务队列及当前状态的文本文件，有以下几种表示：
 
-- `[ ] <命令>` : 待执行的任务
-- `[?] <命令>` : 暂停中的排队任务，接下来不会被执行
-- `[-] <命令> [start_date] [R:runner_pid]` : 正在被某个 Runner 执行的任务
-- `[x] <命令> [start_date] [elapsed_time]` : 已结束的任务，正常退出
-- `[!] <命令> [start_date] [elapsed_time]` : 已结束的任务，异常退出
+- `[ ] <命令>` - 待执行的任务
+- `[?] <命令>` - 暂停中的排队任务，接下来不会被执行
+- `[-] <命令> [start_date] [R:runner_pid]` - 正在被某个 Runner 执行的任务
+- `[x] <命令> [start_date] [elapsed_time]` - 已结束的任务，正常退出
+- `[!] <命令> [start_date] [elapsed_time]` - 已结束的任务，异常退出
 
-一般来说不应该手动编辑此文件，请用 `tq add` / `tq run` / `tq clean` 来管理。
+一般来说不应该手动编辑此文件，请用 `tq add` / `tq run` 等命令来管理。
 
-### 安装
+### 安装 / 升级
 
 为了计算任务耗时，系统需安装 `bc` 。
 
 1. `git clone` 或下载本仓库到本地
-2. `bash ./install.sh` - 必要文件将会安装到 `$HOME/opt/taskqueue`
+2. `bash ./install.sh` - 必要文件将会复制到 `$HOME/opt/taskqueue`
 3. `echo 'alias tq="bash $HOME/opt/taskqueue/taskqueue.sh"' >> ~/.bashrc`
 4. `source ~/.bashrc`
 5. `tq help`
@@ -51,15 +51,17 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均完全采用�
   tq help        - 显示此帮助信息
 ```
 
+每当启动一个新的运行器，运行器将会找到队列中第一个正在排队的任务并启动运行。当前任务结束后将再次寻找，直到队列中不再有排队任务，然后自动退出。
+
 示例：
 
-1. 添加一个测试任务:
+1. 添加一个测试任务：
    `tq add 'echo "Hello from task queue"'`
 
-2. 启动运行器:
+2. 启动运行器：
    `tq run`
 
-3. 查看任务状态:
+3. 查看任务状态：
    `tq`
 
 ### 小贴士
