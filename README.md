@@ -39,15 +39,16 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均完全采用�
 可用命令:
 
 ```
-tq, tq list    - 显示所有任务状态
-tq add <命令>  - 添加任务到队列（在当前路径下执行）
-tq run         - 启动一个新的运行器
-tq pause       - 暂停未开始的任务
-tq resume      - 恢复已暂停的任务到队列
-tq clean       - 清理已完成的任务
-tq cleanall    - 清理所有非运行中的任务
-tq file        - 输出任务队列文件路径
-tq help        - 显示此帮助信息
+  tq, tq list    - 显示所有任务状态
+  tq add <命令>  - 添加任务到队列（将在当前路径下执行）
+  tq run         - 启动一个新的运行器
+  tq top <N>     - 将第 N 个等待任务提前到第一位
+  tq pause       - 暂停未开始的任务
+  tq resume      - 恢复已暂停的任务到队列
+  tq clean       - 清理已完成的任务
+  tq cleanall    - 清理所有非运行中的任务
+  tq file        - 输出任务队列文件路径
+  tq help        - 显示此帮助信息
 ```
 
 示例：

@@ -234,6 +234,140 @@ tq_cleanall() {
     echo -e "   已移除: $removed 个非运行中任务"
 }
 
+# 将第N个等待任务提前到第一位
+tq_top() {
+    local n="$1"
+
+    # 检查参数
+    if [ -z "$n" ]; then
+        echo -e "${RED}错误: 请指定任务编号${NC}" >&2
+        echo "用法: tq top <任务编号>" >&2
+        return 1
+    fi
+
+    # 验证参数是否为数字
+    if ! [[ "$n" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}错误: 任务编号必须是数字${NC}" >&2
+        return 1
+    fi
+
+    if [ "$n" -le 0 ]; then
+        echo -e "${RED}错误: 任务编号必须大于0${NC}" >&2
+        return 1
+    fi
+
+    echo -e "${CYAN}正在将第 $n 个等待任务提前到第一位...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 创建临时文件
+    local temp_file
+    temp_file=$(mktemp) || {
+        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    # 分离等待任务、已暂停任务、未知状态任务和其他状态任务
+    local other_tasks=()
+    local waiting_tasks=()
+    local paused_tasks=()
+    local unknown_tasks=()
+    local waiting_count=0
+
+    # 读取所有任务
+    while IFS= read -r line || [ -n "$line" ]; do
+        if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
+            # 等待任务
+            waiting_tasks+=("$line")
+            ((waiting_count++))
+        elif [[ "$line" =~ ^\[\?\] ]]; then
+            # 已暂停任务
+            paused_tasks+=("$line")
+        elif [[ "$line" =~ ^\[-\] ]] || [[ "$line" =~ ^\[x\] ]] || [[ "$line" =~ ^\[\!\] ]]; then
+            # 其他已知状态任务（运行中、成功、失败）
+            other_tasks+=("$line")
+        else
+            # 未知状态任务
+            unknown_tasks+=("$line")
+        fi
+    done < "$JOBS_FILE"
+
+    # 检查n是否有效
+    if [ "$n" -gt "$waiting_count" ]; then
+        echo -e "${RED}错误: 只有 $waiting_count 个等待任务，无法移动第 $n 个${NC}" >&2
+        rm -f "$temp_file"
+        release_lock
+        return 1
+    fi
+
+    # 重新排序等待任务
+    if [ "$waiting_count" -gt 0 ] && [ "$n" -le "$waiting_count" ]; then
+        # 找到要提前的任务
+        local target_task="${waiting_tasks[$((n-1))]}"
+
+        # 从数组中移除该任务
+        unset "waiting_tasks[$((n-1))]"
+
+        # 重新构建数组（移除空元素）
+        local new_waiting_tasks=()
+        for task in "${waiting_tasks[@]}"; do
+            if [ -n "$task" ]; then
+                new_waiting_tasks+=("$task")
+            fi
+        done
+        waiting_tasks=("${new_waiting_tasks[@]}")
+
+        # 将目标任务放到等待任务列表的最前面
+        waiting_tasks=("$target_task" "${waiting_tasks[@]}")
+    fi
+
+    # 写入临时文件：先写其他状态任务，再写等待任务，再写已暂停任务，最后写未知状态任务
+    for task in "${other_tasks[@]}"; do
+        echo "$task" >> "$temp_file"
+    done
+
+    for task in "${waiting_tasks[@]}"; do
+        echo "$task" >> "$temp_file"
+    done
+
+    for task in "${paused_tasks[@]}"; do
+        echo "$task" >> "$temp_file"
+    done
+
+    for task in "${unknown_tasks[@]}"; do
+        echo "$task" >> "$temp_file"
+    done
+
+    # 统计移动情况
+    local original_waiting_count="$waiting_count"
+    local new_waiting_count="${#waiting_tasks[@]}"
+
+    if [ "$original_waiting_count" -ne "$new_waiting_count" ]; then
+        echo -e "${YELLOW}警告: 等待任务数量发生变化 ($original_waiting_count -> $new_waiting_count)${NC}" >&2
+    fi
+
+    # 安全替换原文件
+    mv "$temp_file" "$JOBS_FILE" || {
+        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    release_lock
+
+    echo -e "${GREEN}✓ 任务重新排序完成${NC}"
+    echo -e "   已将第 $n 个等待任务提前到第一位"
+}
+
 # 输出任务队列文件路径
 tq_file() {
     echo "$JOBS_FILE"
@@ -245,8 +379,9 @@ tq_help() {
     echo ""
     echo -e "${GREEN}可用命令:${NC}"
     echo "  tq, tq list    - 显示所有任务状态"
-    echo "  tq add <命令>  - 添加任务到队列（在当前路径下执行）"
+    echo "  tq add <命令>  - 添加任务到队列（将在当前路径下执行）"
     echo "  tq run         - 启动一个新的运行器"
+    echo "  tq top <N>     - 将第 N 个等待任务提前到第一位"
     echo "  tq pause       - 暂停未开始的任务"
     echo "  tq resume      - 恢复已暂停的任务到队列"
     echo "  tq clean       - 清理已完成的任务"
@@ -278,6 +413,10 @@ main() {
         "run")
             shift
             tq_run "${1:-1}"
+            ;;
+        "top")
+            shift
+            tq_top "$@"
             ;;
         "pause")
             tq_pause
