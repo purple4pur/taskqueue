@@ -2,7 +2,7 @@
 
 source $HOME/opt/taskqueue/common.sh
 
-# 显示所有任务状态
+# tq_list - 显示所有任务状态 {{{
 tq_list() {
     echo -e "${CYAN}=== 任务队列状态 ($(date '+%Y-%m-%d %H:%M:%S')) ===${NC}"
     echo -e "${GREEN}文件: $JOBS_FILE${NC}"
@@ -44,11 +44,12 @@ tq_list() {
         echo -e "$status $line"
     done < "$JOBS_FILE"
 }
+#}}}
 
-# 添加任务到队列
+# tq_add - 添加任务到队列 {{{
 tq_add() {
     if [ $# -eq 0 ]; then
-        echo -e "${RED}错误: 请提供要执行的命令${NC}" >&2
+        echo -e "${RED}错误: 请提供要运行的命令${NC}" >&2
         echo "用法: tq add <命令>" >&2
         return 1
     fi
@@ -92,149 +93,15 @@ tq_add() {
     echo -e "   目录: $current_dir"
     echo -e "   命令: $command"
 }
+#}}}
 
-# 启动新的运行器
+# tq_run - 启动一个新的运行器 {{{
 tq_run() {
     bash "$RUNNER_SCRIPT"
 }
+#}}}
 
-# 暂停未开始的任务
-tq_pause() {
-    echo -e "${CYAN}正在暂停未开始的任务...${NC}"
-
-    if [ ! -f "$JOBS_FILE" ]; then
-        echo -e "${YELLOW}任务文件不存在${NC}"
-        return 0
-    fi
-
-    # 获取文件锁
-    if ! acquire_lock "$LOCK_FILE"; then
-        return 1
-    fi
-
-    # 更改未开始任务状态
-    local unstarted=$(grep -Ec '^\[ \] ' "$JOBS_FILE")
-    sed -Ei 's#^\[ \] #[?] #' "$JOBS_FILE"
-
-    release_lock
-
-    echo -e "${GREEN}✓ 暂停完成${NC}"
-    echo -e "   已暂停: $unstarted 个未开始任务"
-}
-
-# 恢复已暂停的任务到队列
-tq_resume() {
-    echo -e "${CYAN}正在恢复已暂停的任务...${NC}"
-
-    if [ ! -f "$JOBS_FILE" ]; then
-        echo -e "${YELLOW}任务文件不存在${NC}"
-        return 0
-    fi
-
-    # 获取文件锁
-    if ! acquire_lock "$LOCK_FILE"; then
-        return 1
-    fi
-
-    # 更改已暂停任务状态
-    local paused=$(grep -Ec '^\[\?\] ' "$JOBS_FILE")
-    sed -Ei 's#^\[\?\] #[ ] #' "$JOBS_FILE"
-
-    release_lock
-
-    echo -e "${GREEN}✓ 恢复完成${NC}"
-    echo -e "   已恢复: $paused 个已暂停任务"
-}
-
-# 清理已完成的任务
-tq_clean() {
-    echo -e "${CYAN}正在清理已完成的任务...${NC}"
-
-    if [ ! -f "$JOBS_FILE" ]; then
-        echo -e "${YELLOW}任务文件不存在${NC}"
-        return 0
-    fi
-
-    # 获取文件锁
-    if ! acquire_lock "$LOCK_FILE"; then
-        return 1
-    fi
-
-    # 安全过滤任务
-    local temp_file
-    temp_file=$(mktemp) || {
-        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
-        release_lock
-        return 1
-    }
-
-    # 只保留非完成状态的任务
-    grep -v "^\[[x!]\] " "$JOBS_FILE" > "$temp_file"
-
-    local original_count
-    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
-    local new_count
-    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
-    local removed=$((original_count - new_count))
-
-    # 安全替换原文件
-    mv "$temp_file" "$JOBS_FILE" || {
-        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
-        release_lock
-        return 1
-    }
-
-    release_lock
-
-    echo -e "${GREEN}✓ 清理完成${NC}"
-    echo -e "   已移除: $removed 个已结束任务"
-}
-
-# 清理所有非运行中的任务
-tq_cleanall() {
-    echo -e "${CYAN}正在清理所有非运行中的任务...${NC}"
-
-    if [ ! -f "$JOBS_FILE" ]; then
-        echo -e "${YELLOW}任务文件不存在${NC}"
-        return 0
-    fi
-
-    # 获取文件锁
-    if ! acquire_lock "$LOCK_FILE"; then
-        return 1
-    fi
-
-    # 安全过滤任务
-    local temp_file
-    temp_file=$(mktemp) || {
-        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
-        release_lock
-        return 1
-    }
-
-    # 只保留运行中的任务
-    grep -v "^\[[ ?x!]\] " "$JOBS_FILE" > "$temp_file"
-
-    local original_count
-    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
-    local new_count
-    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
-    local removed=$((original_count - new_count))
-
-    # 安全替换原文件
-    mv "$temp_file" "$JOBS_FILE" || {
-        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
-        release_lock
-        return 1
-    }
-
-    release_lock
-
-    echo -e "${GREEN}✓ 清理完成${NC}"
-    echo -e "   已移除: $removed 个非运行中任务"
-}
-
-# 将第N个等待任务提前到第一位
+# tq_top - 将第 N 个等待任务提前到第一位 {{{
 tq_top() {
     local n="$1"
 
@@ -367,26 +234,168 @@ tq_top() {
     echo -e "${GREEN}✓ 任务重新排序完成${NC}"
     echo -e "   已将第 $n 个等待任务提前到第一位"
 }
+#}}}
 
-# 输出任务队列文件路径
+# tq_pauseall - 暂停所有未开始的任务 {{{
+tq_pauseall() {
+    echo -e "${CYAN}正在暂停未开始的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 更改未开始任务状态
+    local unstarted=$(grep -Ec '^\[ \] ' "$JOBS_FILE")
+    sed -Ei 's#^\[ \] #[?] #' "$JOBS_FILE"
+
+    release_lock
+
+    echo -e "${GREEN}✓ 暂停完成${NC}"
+    echo -e "   已暂停: $unstarted 个未开始任务"
+}
+#}}}
+
+# tq_resumeall - 恢复所有已暂停的任务到队列 {{{
+tq_resumeall() {
+    echo -e "${CYAN}正在恢复已暂停的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 更改已暂停任务状态
+    local paused=$(grep -Ec '^\[\?\] ' "$JOBS_FILE")
+    sed -Ei 's#^\[\?\] #[ ] #' "$JOBS_FILE"
+
+    release_lock
+
+    echo -e "${GREEN}✓ 恢复完成${NC}"
+    echo -e "   已恢复: $paused 个已暂停任务"
+}
+#}}}
+
+# tq_clean - 清空已结束的任务 {{{
+tq_clean() {
+    echo -e "${CYAN}正在清空已结束的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 安全过滤任务
+    local temp_file
+    temp_file=$(mktemp) || {
+        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    # 只保留非完成状态的任务
+    grep -v "^\[[x!]\] " "$JOBS_FILE" > "$temp_file"
+
+    local original_count
+    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
+    local new_count
+    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
+    local removed=$((original_count - new_count))
+
+    # 安全替换原文件
+    mv "$temp_file" "$JOBS_FILE" || {
+        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    release_lock
+
+    echo -e "${GREEN}✓ 清空完成${NC}"
+    echo -e "   已移除: $removed 个已结束任务"
+}
+#}}}
+
+# tq_cleanall - 清空所有非运行中的任务 {{{
+tq_cleanall() {
+    echo -e "${CYAN}正在清空所有非运行中的任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 安全过滤任务
+    local temp_file
+    temp_file=$(mktemp) || {
+        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    # 只保留运行中的任务
+    grep -v "^\[[ ?x!]\] " "$JOBS_FILE" > "$temp_file"
+
+    local original_count
+    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
+    local new_count
+    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
+    local removed=$((original_count - new_count))
+
+    # 安全替换原文件
+    mv "$temp_file" "$JOBS_FILE" || {
+        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
+        release_lock
+        return 1
+    }
+
+    release_lock
+
+    echo -e "${GREEN}✓ 清空完成${NC}"
+    echo -e "   已移除: $removed 个非运行中任务"
+}
+#}}}
+
+# tq_file - 显示队列文件路径 {{{
 tq_file() {
     echo "$JOBS_FILE"
 }
+#}}}
 
-# 显示帮助信息
+# tq_help - 显示帮助信息 {{{
 tq_help() {
     echo -e "${CYAN}=== TaskQueue (tq) ===${NC}"
     echo ""
     echo -e "${GREEN}可用命令:${NC}"
     echo "  tq, tq list    - 显示所有任务状态"
-    echo "  tq add <命令>  - 添加任务到队列（将在当前路径下执行）"
+    echo "  tq add <命令>  - 添加任务到队列（将在当前路径下运行）"
     echo "  tq run         - 启动一个新的运行器"
     echo "  tq top <N>     - 将第 N 个等待任务提前到第一位"
-    echo "  tq pause       - 暂停未开始的任务"
-    echo "  tq resume      - 恢复已暂停的任务到队列"
-    echo "  tq clean       - 清理已完成的任务"
-    echo "  tq cleanall    - 清理所有非运行中的任务"
-    echo "  tq file        - 输出任务队列文件路径"
+    echo "  tq pauseall    - 暂停所有未开始的任务"
+    echo "  tq resumeall   - 恢复所有已暂停的任务到队列"
+    echo "  tq clean       - 清空已结束的任务"
+    echo "  tq cleanall    - 清空所有非运行中的任务"
+    echo "  tq file        - 显示队列文件路径"
     echo "  tq help        - 显示此帮助信息"
     echo ""
     echo -e "${MAGENTA}配置文件:${NC}"
@@ -397,8 +406,9 @@ tq_help() {
     echo "  tq add 'find . -name \"*.py\"'"
     echo "  tq run"
 }
+#}}}
 
-# 主函数
+# main - 主函数 {{{
 main() {
     local command="$1"
 
@@ -418,11 +428,11 @@ main() {
             shift
             tq_top "$@"
             ;;
-        "pause")
-            tq_pause
+        "pauseall")
+            tq_pauseall
             ;;
-        "resume")
-            tq_resume
+        "resumeall")
+            tq_resumeall
             ;;
         "clean")
             tq_clean
@@ -443,6 +453,7 @@ main() {
             ;;
     esac
 }
+#}}}
 
 # 如果直接运行脚本，执行主函数
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
