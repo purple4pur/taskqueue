@@ -15,6 +15,7 @@ tq_list() {
 
     # 读取并显示所有任务
     local queue_order=1
+    local paused_order=1
     while IFS= read -r line || [ -n "$line" ]; do
         local status="未知"
         local task_info=""
@@ -24,7 +25,8 @@ tq_list() {
             status=$(printf "${CYAN}%3s${NC}" "Q$queue_order")
             ((queue_order++))
         elif [[ "$line" =~ ^\[\?\] ]]; then
-            status="${MAGENTA}PAU${NC}"
+            status=$(printf "${MAGENTA}%3s${NC}" "P$paused_order")
+            ((paused_order++))
         elif [[ "$line" =~ ^\[-\] ]]; then
             status="${YELLOW}RUN${NC}"
         elif [[ "$line" =~ ^\[x\] ]]; then
@@ -233,6 +235,74 @@ tq_top() {
 
     echo -e "${GREEN}✓ 任务重新排序完成${NC}"
     echo -e "   已将第 $n 个等待任务提前到第一位"
+
+    tq_list
+}
+#}}}
+
+# tq_pause - 暂停第 N 个等待任务 {{{
+tq_pause() {
+    local n="$1"
+
+    # 检查参数
+    if [ -z "$n" ]; then
+        echo -e "${RED}错误: 请指定任务编号${NC}" >&2
+        echo "用法: tq pause <任务编号>" >&2
+        return 1
+    fi
+
+    # 验证参数是否为数字
+    if ! [[ "$n" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}错误: 任务编号必须是数字${NC}" >&2
+        return 1
+    fi
+
+    if [ "$n" -le 0 ]; then
+        echo -e "${RED}错误: 任务编号必须大于0${NC}" >&2
+        return 1
+    fi
+
+    echo -e "${CYAN}正在暂停第 $n 个等待任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 读取所有任务
+    local queue_num=0
+    local line_num=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        ((line_num++))
+
+        # 定位第 N 个等待任务并暂停
+        if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
+            ((queue_num++))
+
+            if [ "$queue_num" -eq "$n" ]; then
+                sed -Ei "${line_num}s#^\\[ \\]#[?]#" "$JOBS_FILE"
+                break
+            fi
+        fi
+    done < "$JOBS_FILE"
+
+    if [ "$n" -gt "$queue_num" ]; then
+        echo -e "${RED}错误: 只有 $queue_num 个等待任务，无法暂停第 $n 个${NC}" >&2
+        release_lock
+        return 1
+    fi
+
+    release_lock
+
+    echo -e "${GREEN}✓ 任务暂停完成${NC}"
+    echo -e "   已暂停第 $n 个等待任务"
+
+    tq_list
 }
 #}}}
 
@@ -258,6 +328,74 @@ tq_pauseall() {
 
     echo -e "${GREEN}✓ 暂停完成${NC}"
     echo -e "   已暂停: $unstarted 个未开始任务"
+
+    tq_list
+}
+#}}}
+
+# tq_resume - 恢复第 N 个暂停任务 {{{
+tq_resume() {
+    local n="$1"
+
+    # 检查参数
+    if [ -z "$n" ]; then
+        echo -e "${RED}错误: 请指定任务编号${NC}" >&2
+        echo "用法: tq resume <任务编号>" >&2
+        return 1
+    fi
+
+    # 验证参数是否为数字
+    if ! [[ "$n" =~ ^[0-9]+$ ]]; then
+        echo -e "${RED}错误: 任务编号必须是数字${NC}" >&2
+        return 1
+    fi
+
+    if [ "$n" -le 0 ]; then
+        echo -e "${RED}错误: 任务编号必须大于0${NC}" >&2
+        return 1
+    fi
+
+    echo -e "${CYAN}正在恢复第 $n 个暂停任务...${NC}"
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 读取所有任务
+    local paused_num=0
+    local line_num=0
+    while IFS= read -r line || [ -n "$line" ]; do
+        ((line_num++))
+
+        # 定位第 N 个暂停任务并恢复
+        if [[ "$line" =~ ^\[\?\] ]]; then
+            ((paused_num++))
+
+            if [ "$paused_num" -eq "$n" ]; then
+                sed -Ei "${line_num}s#^\\[\\?\\]#[ ]#" "$JOBS_FILE"
+                break
+            fi
+        fi
+    done < "$JOBS_FILE"
+
+    if [ "$n" -gt "$paused_num" ]; then
+        echo -e "${RED}错误: 只有 $paused_num 个暂停任务，无法恢复第 $n 个${NC}" >&2
+        release_lock
+        return 1
+    fi
+
+    release_lock
+
+    echo -e "${GREEN}✓ 任务恢复完成${NC}"
+    echo -e "   已恢复第 $n 个暂停任务"
+
+    tq_list
 }
 #}}}
 
@@ -283,6 +421,8 @@ tq_resumeall() {
 
     echo -e "${GREEN}✓ 恢复完成${NC}"
     echo -e "   已恢复: $paused 个已暂停任务"
+
+    tq_list
 }
 #}}}
 
@@ -328,6 +468,8 @@ tq_clean() {
 
     echo -e "${GREEN}✓ 清空完成${NC}"
     echo -e "   已移除: $removed 个已结束任务"
+
+    tq_list
 }
 #}}}
 
@@ -373,6 +515,8 @@ tq_cleanall() {
 
     echo -e "${GREEN}✓ 清空完成${NC}"
     echo -e "   已移除: $removed 个非运行中任务"
+
+    tq_list
 }
 #}}}
 
@@ -390,11 +534,15 @@ tq_help() {
     echo "  tq, tq list    - 显示所有任务状态"
     echo "  tq add <命令>  - 添加任务到队列（将在当前路径下运行）"
     echo "  tq run         - 启动一个新的运行器"
+    echo ""
     echo "  tq top <N>     - 将第 N 个等待任务提前到第一位"
+    echo "  tq pause <N>   - 暂停第 N 个等待任务"
     echo "  tq pauseall    - 暂停所有未开始的任务"
+    echo "  tq resume <N>  - 恢复第 N 个暂停任务"
     echo "  tq resumeall   - 恢复所有已暂停的任务到队列"
     echo "  tq clean       - 清空已结束的任务"
     echo "  tq cleanall    - 清空所有非运行中的任务"
+    echo ""
     echo "  tq file        - 显示队列文件路径"
     echo "  tq help        - 显示此帮助信息"
     echo ""
@@ -428,8 +576,16 @@ main() {
             shift
             tq_top "$@"
             ;;
+        "pause")
+            shift
+            tq_pause "$@"
+            ;;
         "pauseall")
             tq_pauseall
+            ;;
+        "resume")
+            shift
+            tq_resume "$@"
             ;;
         "resumeall")
             tq_resumeall
