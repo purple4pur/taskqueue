@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-source $HOME/opt/taskqueue/common.sh
-
 # tq_list - 显示所有任务状态 {{{
 tq_list() {
     echo -e "${CYAN}=== 任务队列状态 ($(date '+%Y-%m-%d %H:%M:%S')) ===${NC}"
@@ -99,7 +97,8 @@ tq_add() {
 
 # tq_run - 启动一个新的运行器 {{{
 tq_run() {
-    bash "$RUNNER_SCRIPT"
+    local tq_dir="$1"
+    bash "$RUNNER_SCRIPT" "$tq_dir"
 }
 #}}}
 
@@ -531,8 +530,10 @@ tq_help() {
     echo -e "${CYAN}=== TaskQueue (tq) ===${NC}"
     echo ""
     echo -e "${GREEN}可用命令:${NC}"
-    echo "  tq, tq list    - 显示所有任务状态"
-    echo "  tq add <命令>  - 添加任务到队列（将在当前路径下运行）"
+    echo "  tq,"
+    echo "  tq list        - 显示所有任务状态"
+    echo ""
+    echo "  tq add <任务>  - 添加任务到队列（将在当前路径下运行）"
     echo "  tq run         - 启动一个新的运行器"
     echo ""
     echo "  tq top <N>     - 将第 N 个等待任务提前到第一位"
@@ -546,8 +547,12 @@ tq_help() {
     echo "  tq file        - 显示队列文件路径"
     echo "  tq help        - 显示此帮助信息"
     echo ""
+    echo "  tql      <子命令>,"
+    echo "  tq local <子命令>  - 使用当前目录的队列（./tasks.txt）"
+    echo ""
     echo -e "${MAGENTA}配置文件:${NC}"
     echo "  任务文件:    $JOBS_FILE"
+    echo "  锁文件:      $LOCK_FILE"
     echo "  运行器脚本:  $RUNNER_SCRIPT"
     echo ""
     echo -e "${BLUE}示例:${NC}"
@@ -558,8 +563,13 @@ tq_help() {
 
 # main - 主函数 {{{
 main() {
-    local command="$1"
+    if [ "$1" == "local" ]; then
+        shift
+        readonly TQ_DIR="."
+    fi
+    source $HOME/opt/taskqueue/common.sh
 
+    local command="$1"
     case "$command" in
         "list"|"")
             tq_list
@@ -569,8 +579,7 @@ main() {
             tq_add "$@"
             ;;
         "run")
-            shift
-            tq_run "${1:-1}"
+            tq_run "$TQ_DIR"
             ;;
         "top")
             shift

@@ -12,7 +12,7 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 
 恩师其二：DeepSeek (via 腾讯元宝)，95% 的代码都由 DeepSeek 完成。
 
-### 队列文件 `tasks.txt`
+### 任务队列 `tasks.txt`
 
 记录任务队列及当前状态的文本文件，有以下几种表示：
 
@@ -31,16 +31,19 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 1. `git clone` 或下载本仓库到本地
 2. `bash ./install.sh` - 必要文件将会复制到 `$HOME/opt/taskqueue`
 3. `echo 'alias tq="bash $HOME/opt/taskqueue/taskqueue.sh"' >> ~/.bashrc`
-4. `source ~/.bashrc`
-5. `tq help`
+4. `echo 'alias tql="tq local"' >> ~/.bashrc`
+5. `source ~/.bashrc`
+6. `tq help`
 
-升级时只需刷新本地文件，然后 `bash ./install.sh` 即可。
+升级时只需刷新本地文件，然后再次 `bash ./install.sh` 即可。
 
 ### 用法
 
 ```
-  tq, tq list    - 显示所有任务状态
-  tq add <命令>  - 添加任务到队列（将在当前路径下运行）
+  tq,
+  tq list        - 显示所有任务状态
+
+  tq add <任务>  - 添加任务到队列（将在当前路径下运行）
   tq run         - 启动一个新的运行器
 
   tq top <N>     - 将第 N 个等待任务提前到第一位
@@ -53,6 +56,9 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 
   tq file        - 显示队列文件路径
   tq help        - 显示此帮助信息
+
+  tql      <子命令>,
+  tq local <子命令>  - 使用当前目录的队列（./tasks.txt）
 ```
 
 每当启动一个新的运行器，运行器将会找到队列中第一个正在排队的任务并启动运行。当前任务结束后将再次寻找，直到队列中不再有排队任务，然后自动退出。

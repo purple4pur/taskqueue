@@ -2,9 +2,9 @@
 
 # 配置文件路径
 readonly BASE_DIR="$HOME/opt/taskqueue"
-readonly JOBS_FILE="$BASE_DIR/tasks.txt"
 readonly RUNNER_SCRIPT="$BASE_DIR/runner.sh"
-readonly LOCK_FILE="$BASE_DIR/.lock"
+readonly JOBS_FILE="${TQ_DIR:-$BASE_DIR}/tasks.txt"
+readonly LOCK_FILE="${TQ_DIR:-$BASE_DIR}/.lock"
 
 # 颜色定义
 readonly RED='\033[0;31m'

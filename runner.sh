@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 
+readonly TQ_DIR="$1"
 source $HOME/opt/taskqueue/common.sh
 
 while true; do
