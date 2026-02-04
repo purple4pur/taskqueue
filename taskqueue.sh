@@ -16,7 +16,6 @@ tq_list() {
     local paused_order=1
     while IFS= read -r line || [ -n "$line" ]; do
         local status="未知"
-        local task_info=""
 
         # 解析任务状态
         if [[ "$line" =~ ^\[[[:space:]]\] ]]; then

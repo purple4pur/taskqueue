@@ -9,6 +9,7 @@ while true; do
         break
     fi
 
+    # Acquire file lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
@@ -34,6 +35,7 @@ while true; do
 
     release_lock
 
+    # Display runner command
     echo -e "${CYAN}[R:$$] $JOB_COMMAND${NC}"
 
     # Record start time
@@ -48,7 +50,7 @@ while true; do
     ELAPSED=$(echo "$END - $START" | bc)
     HOURS=$(echo "$ELAPSED/3600" | bc)
     MINUTES=$(echo "($ELAPSED%3600)/60" | bc)
-    SECONDS=$(echo "$ELAPSED%60" | bc | awk '{printf "%.0f", $1}')
+    SECONDS=$(echo "$ELAPSED%60" | bc | printf "%.0f")
     if [ $HOURS -gt 0 ]; then
         ELAPSED="${HOURS}h${MINUTES}m${SECONDS}s"
     elif [ $MINUTES -gt 0 ]; then
@@ -57,6 +59,7 @@ while true; do
         ELAPSED="${SECONDS}s"
     fi
 
+    # Acquire file lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
@@ -65,11 +68,11 @@ while true; do
     if [ $STATUS -eq 0 ]; then
         # Update the job status to completed
         sed -i "/R:$$/s#.*#[x] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
-        echo -e "${GREEN}[R:$$] Job finished successfully.${NC}"
+        echo -e "${GREEN}[R:$$] Job finished successfully. ${YELLOW}[$ELAPSED]${NC}"
     else
         # Update the job status to failed
         sed -i "/R:$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
-        echo -e "${RED}[R:$$] Job finished with code $STATUS.${NC}"
+        echo -e "${RED}[R:$$] Job finished with code $STATUS. ${YELLOW}[$ELAPSED]${NC}"
     fi
 
     release_lock
