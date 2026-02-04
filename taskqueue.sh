@@ -36,9 +36,8 @@ tq_list() {
         fi
 
         # 彩色输出开始时间、运行器ID、消耗时间
-        line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\])#\\${MAGENTA}\\1\\${NC}#")
-        line=$(echo "$line" | sed -E "s#(\\[R:[0-9]+\\])#\\${YELLOW}\\1\\${NC}#")
-        line=$(echo "$line" | sed -E "s#(\\[[0-9hm]+s\\])#\\${CYAN}\\1\\${NC}#")
+        line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[R:[0-9]+\\])#\\${MAGENTA}\\1\\${NC} \\${YELLOW}\\2\\${NC}#")
+        line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[[0-9hm]+s\\])#\\${MAGENTA}\\1\\${NC} \\${CYAN}\\2\\${NC}#")
 
         # 显示任务信息
         echo -e "$status $line"
@@ -234,7 +233,7 @@ tq_top() {
 
     echo -e "${GREEN}✓ 任务重新排序完成${NC}"
     echo -e "   已将第 $n 个等待任务提前到第一位"
-
+    echo ""
     tq_list
 }
 #}}}
@@ -300,7 +299,7 @@ tq_pause() {
 
     echo -e "${GREEN}✓ 任务暂停完成${NC}"
     echo -e "   已暂停第 $n 个等待任务"
-
+    echo ""
     tq_list
 }
 #}}}
@@ -327,7 +326,7 @@ tq_pauseall() {
 
     echo -e "${GREEN}✓ 暂停完成${NC}"
     echo -e "   已暂停: $unstarted 个未开始任务"
-
+    echo ""
     tq_list
 }
 #}}}
@@ -393,7 +392,7 @@ tq_resume() {
 
     echo -e "${GREEN}✓ 任务恢复完成${NC}"
     echo -e "   已恢复第 $n 个暂停任务"
-
+    echo ""
     tq_list
 }
 #}}}
@@ -420,7 +419,7 @@ tq_resumeall() {
 
     echo -e "${GREEN}✓ 恢复完成${NC}"
     echo -e "   已恢复: $paused 个已暂停任务"
-
+    echo ""
     tq_list
 }
 #}}}
@@ -467,7 +466,7 @@ tq_clean() {
 
     echo -e "${GREEN}✓ 清空完成${NC}"
     echo -e "   已移除: $removed 个已结束任务"
-
+    echo ""
     tq_list
 }
 #}}}
@@ -514,7 +513,33 @@ tq_cleanall() {
 
     echo -e "${GREEN}✓ 清空完成${NC}"
     echo -e "   已移除: $removed 个非运行中任务"
+    echo ""
+    tq_list
+}
+#}}}
 
+# tq_resetall - 重置所有非运行中的任务到队列 {{{
+tq_resetall() {
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在或为空${NC}"
+        return 0
+    fi
+
+    # 获取文件锁
+    if ! acquire_lock "$LOCK_FILE"; then
+        return 1
+    fi
+
+    # 重置所有非运行中任务
+    local changed=$(grep -Ec '^\[[?x!]\] ' "$JOBS_FILE")
+    sed -Ei 's#^\[[?x!]\] #[ ] #' "$JOBS_FILE"
+    sed -Ei 's# \[[0-9/]{5} [0-9:]{5}\] \[[0-9hm]+s\]$##' "$JOBS_FILE"
+
+    release_lock
+
+    echo -e "${GREEN}✓ 重置完成${NC}"
+    echo -e "   已重置: $changed 个非运行中任务"
+    echo ""
     tq_list
 }
 #}}}
@@ -543,6 +568,7 @@ tq_help() {
     echo "  tq resumeall   - 恢复所有已暂停的任务到队列"
     echo "  tq clean       - 清空已结束的任务"
     echo "  tq cleanall    - 清空所有非运行中的任务"
+    echo "  tq resetall    - 重置所有非运行中的任务到队列"
     echo ""
     echo "  tq file        - 显示队列文件路径"
     echo "  tq help        - 显示此帮助信息"
@@ -565,7 +591,7 @@ tq_help() {
 main() {
     if [ "$1" == "local" ]; then
         shift
-        readonly TQ_DIR="."
+        readonly TQ_DIR="$PWD"
     fi
     source $HOME/opt/taskqueue/common.sh
 
@@ -604,6 +630,9 @@ main() {
             ;;
         "cleanall")
             tq_cleanall
+            ;;
+        "resetall")
+            tq_resetall
             ;;
         "file")
             tq_file
