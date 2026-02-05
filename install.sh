@@ -28,15 +28,15 @@ done
 
 # 复制脚本到目标目录
 echo "复制脚本到 $BASE_DIR..."
-cp taskqueue.sh "$BASE_DIR/"
-cp runner.sh "$BASE_DIR/"
-cp common.sh "$BASE_DIR/"
+for script in "${SCRIPTS[@]}"; do
+    cp "$script" "$BASE_DIR/"
+done
 
 # 设置执行权限
 echo "设置执行权限..."
-chmod +x "$BASE_DIR/taskqueue.sh"
-chmod +x "$BASE_DIR/runner.sh"
-chmod +x "$BASE_DIR/common.sh"
+for script in "${SCRIPTS[@]}"; do
+    chmod +x "$BASE_DIR/$script"
+done
 
 # 创建任务文件（如果不存在）
 TASKS_FILE="$BASE_DIR/tasks.txt"
@@ -65,6 +65,7 @@ echo ""
 echo "快速开始:"
 echo "1. 添加别名到您的 shell 配置:"
 echo "   echo 'alias tq=\"bash \$HOME/opt/taskqueue/taskqueue.sh\"' >> ~/.bashrc"
+echo "   echo 'alias tq=\"tq local\"' >> ~/.bashrc"
 echo "   source ~/.bashrc"
 echo ""
 echo "2. 添加一个测试任务:"
@@ -75,5 +76,3 @@ echo "   tq run"
 echo ""
 echo "4. 查看任务状态:"
 echo "   tq"
-echo ""
-echo "==========================================="
