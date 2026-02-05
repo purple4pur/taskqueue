@@ -50,7 +50,7 @@ while true; do
     ELAPSED=$(echo "$END - $START" | bc)
     HOURS=$(echo "$ELAPSED/3600" | bc)
     MINUTES=$(echo "($ELAPSED%3600)/60" | bc)
-    SECONDS=$(echo "$ELAPSED%60" | bc | printf "%.0f")
+    SECONDS=$(echo "$ELAPSED%60" | bc | awk '{printf "%.0f", $1}')
     if [ $HOURS -gt 0 ]; then
         ELAPSED="${HOURS}h${MINUTES}m${SECONDS}s"
     elif [ $MINUTES -gt 0 ]; then
