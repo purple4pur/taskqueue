@@ -517,8 +517,8 @@ tq_cleanall() {
 }
 #}}}
 
-# tq_resetall - 重置所有非运行中的任务到队列 {{{
-tq_resetall() {
+# tq_reset - 重置所有非运行中的任务到队列 {{{
+tq_reset() {
     if [ ! -f "$JOBS_FILE" ]; then
         echo -e "${YELLOW}任务文件不存在或为空${NC}"
         return 0
@@ -567,7 +567,7 @@ tq_help() {
     echo "  tq resumeall   - 恢复所有已暂停的任务到队列"
     echo "  tq clean       - 清空已结束的任务"
     echo "  tq cleanall    - 清空所有非运行中的任务"
-    echo "  tq resetall    - 重置所有非运行中的任务到队列"
+    echo "  tq reset       - 重置所有非运行中的任务到队列"
     echo ""
     echo "  tq file        - 显示队列文件路径"
     echo "  tq help        - 显示此帮助信息"
@@ -630,8 +630,8 @@ main() {
         "cleanall")
             tq_cleanall
             ;;
-        "resetall")
-            tq_resetall
+        "reset")
+            tq_reset
             ;;
         "file")
             tq_file
