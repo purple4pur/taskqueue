@@ -54,6 +54,7 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
   tq clean       - 清空已结束的任务
   tq cleanall    - 清空所有非运行中的任务
   tq reset       - 重置所有非运行中的任务到队列
+  tq rerun       - reset + run
 
   tq file        - 显示队列文件路径
   tq help        - 显示此帮助信息

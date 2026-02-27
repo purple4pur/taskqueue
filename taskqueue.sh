@@ -543,6 +543,14 @@ tq_reset() {
 }
 #}}}
 
+# tq_rerun - reset + run {{{
+tq_rerun() {
+    local tq_dir="$1"
+    tq_reset
+    tq_run "$tq_dir"
+}
+#}}}
+
 # tq_file - 显示队列文件路径 {{{
 tq_file() {
     echo "$JOBS_FILE"
@@ -568,6 +576,7 @@ tq_help() {
     echo "  tq clean       - 清空已结束的任务"
     echo "  tq cleanall    - 清空所有非运行中的任务"
     echo "  tq reset       - 重置所有非运行中的任务到队列"
+    echo "  tq rerun       - reset + run"
     echo ""
     echo "  tq file        - 显示队列文件路径"
     echo "  tq help        - 显示此帮助信息"
@@ -632,6 +641,9 @@ main() {
             ;;
         "reset")
             tq_reset
+            ;;
+        "rerun")
+            tq_rerun "$TQ_DIR"
             ;;
         "file")
             tq_file
