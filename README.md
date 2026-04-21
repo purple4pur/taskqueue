@@ -10,7 +10,7 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 
 **建议所有人在使用本工具前都阅读恩师原文。**
 
-恩师其二：DeepSeek (via 腾讯元宝)，95% 的代码都由 DeepSeek 完成。
+恩师其二：DeepSeek (via 腾讯元宝)，95% 的代码都由 DeepSeek 完成。后续有更多 LLM 帮助更新代码，此处不再赘述。
 
 ### 任务队列 `tasks.txt`
 
@@ -57,6 +57,7 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
   tq rerun       - reset + run
 
   tq file        - 显示队列文件路径
+  tq edit        - 用编辑器（$EDITOR）打开任务文件
   tq help        - 显示此帮助信息
 
   tql      <子命令>,

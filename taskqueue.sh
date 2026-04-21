@@ -557,6 +557,26 @@ tq_file() {
 }
 #}}}
 
+# tq_edit - 用编辑器打开任务文件 {{{
+tq_edit() {
+    if [ -z "$EDITOR" ]; then
+        echo -e "${RED}错误: 未设置 EDITOR 环境变量${NC}" >&2
+        echo "请设置 EDITOR，例如: export EDITOR=vim" >&2
+        return 1
+    fi
+
+    if [ ! -f "$JOBS_FILE" ]; then
+        echo -e "${YELLOW}任务文件不存在，将创建新文件${NC}"
+        touch "$JOBS_FILE" || {
+            echo -e "${RED}错误: 无法创建任务文件${NC}" >&2
+            return 1
+        }
+    fi
+
+    $EDITOR "$JOBS_FILE"
+}
+#}}}
+
 # tq_help - 显示帮助信息 {{{
 tq_help() {
     echo -e "${CYAN}=== TaskQueue (tq) ===${NC}"
@@ -579,6 +599,7 @@ tq_help() {
     echo "  tq rerun       - reset + run"
     echo ""
     echo "  tq file        - 显示队列文件路径"
+    echo "  tq edit        - 用编辑器（\$EDITOR）打开任务文件"
     echo "  tq help        - 显示此帮助信息"
     echo ""
     echo "  tql      <子命令>,"
@@ -647,6 +668,9 @@ main() {
             ;;
         "file")
             tq_file
+            ;;
+        "edit")
+            tq_edit
             ;;
         "help")
             tq_help
