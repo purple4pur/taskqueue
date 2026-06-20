@@ -3,6 +3,9 @@
 readonly TQ_DIR="$1"
 source $HOME/opt/taskqueue/common.sh
 
+# Derive the actual queue directory from JOBS_FILE (handles global mode where TQ_DIR is empty)
+QUEUE_DIR=$(dirname "$JOBS_FILE")
+
 while true; do
     if [ ! -f "$JOBS_FILE" ]; then
         echo -e "${YELLOW}[R:$$] Tasks not found.${NC}"
@@ -41,8 +44,11 @@ while true; do
     # Record start time
     START=$(date +%s.%N)
 
-    # Execute the command
-    bash -c "$JOB_COMMAND"
+    # Capture stderr to a temp file
+    STDERR_FILE=$(mktemp)
+
+    # Execute the command, redirecting stderr to temp file
+    bash -c "$JOB_COMMAND" 2> >(tee "$STDERR_FILE")
     STATUS=$?
 
     # Calculate elapsed time
@@ -68,11 +74,16 @@ while true; do
     if [ $STATUS -eq 0 ]; then
         # Update the job status to completed
         sed -i "/R:$$/s#.*#[x] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
+        rm -f "$STDERR_FILE"
         echo -e "${GREEN}[R:$$] Job finished successfully. ${YELLOW}[$ELAPSED]${NC}"
     else
-        # Update the job status to failed
-        sed -i "/R:$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED]#" "$JOBS_FILE"
+        # Write stderr log in-place
+        STDERR_LOG="$QUEUE_DIR/.tq_err_L${LINE_NUM}_$(echo "$START_DATE" | tr -d ' /:').log"
+        mv "$STDERR_FILE" "$STDERR_LOG"
+        # Update the job status to failed with error log info
+        sed -i "/R:$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED] [$STATUS:$STDERR_LOG]#" "$JOBS_FILE"
         echo -e "${RED}[R:$$] Job finished with code $STATUS. ${YELLOW}[$ELAPSED]${NC}"
+        echo -e "${RED}[R:$$] stderr log: $STDERR_LOG${NC}"
     fi
 
     release_lock

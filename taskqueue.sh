@@ -38,6 +38,10 @@ tq_list() {
         line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[R:[0-9]+\\])#\\${MAGENTA}\\1\\${NC} \\${YELLOW}\\2\\${NC}#")
         line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[[0-9hm]+s\\])#\\${MAGENTA}\\1\\${NC} \\${CYAN}\\2\\${NC}#")
 
+        # Highlight error log info for failed tasks [exit_code:log_path]
+        # Match [digits:path] where path ends with .log]
+        line=$(echo "$line" | sed -E "s#\\[([0-9]+):(.+\.log)\\]\$#\\${RED}[\\1:\\2]\\${NC}#")
+
         # 显示任务信息
         echo -e "$status $line"
     done < "$JOBS_FILE"
@@ -532,7 +536,8 @@ tq_reset() {
     # 重置所有非运行中任务
     local changed=$(grep -Ec '^\[[?x!]\] ' "$JOBS_FILE")
     sed -Ei 's#^\[[?x!]\] #[ ] #' "$JOBS_FILE"
-    sed -Ei 's# \[[0-9/]{5} [0-9:]{5}\] \[[0-9hm]+s\]$##' "$JOBS_FILE"
+    # Remove timing info and error log info: [date] [elapsed] or [date] [elapsed] [exit:log]
+    sed -Ei 's# \[[0-9/]{5} [0-9:]{5}\] \[[0-9hm]+s\]( \[[0-9]+:.+\.log\])?$##' "$JOBS_FILE"
 
     release_lock
 

@@ -20,7 +20,9 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 - `[?] <命令>` - 暂停中的任务，还没开始，但不参与排队
 - `[-] <命令> [start_date] [R:runner_pid]` - 正在被某个 Runner 运行的任务
 - `[x] <命令> [start_date] [elapsed_time]` - 已结束的任务，正常退出
-- `[!] <命令> [start_date] [elapsed_time]` - 已结束的任务，异常退出
+- `[!] <命令> [start_date] [elapsed_time] [exit_code:log_path]` - 已结束的任务，异常退出
+
+当任务异常退出时，Runner 会将 stderr 输出保存为日志文件，存放在任务队列所在目录。日志文件名格式为 `.tq_err_L<行号>_<时间>.log`，其中行号对应 `tasks.txt` 中该任务的行号，便于快速定位对应任务。
 
 一般来说不应该手动编辑此文件，请用 `tq add` / `tq run` 等命令来管理，详见「用法」章节。
 
