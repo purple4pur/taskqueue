@@ -17,24 +17,15 @@ SCRIPTS=("taskqueue.sh" "runner.sh" "common.sh")
 echo "创建目录结构..."
 mkdir -p "$BASE_DIR"
 
-# 检查脚本是否存在
+# 复制脚本到目标目录并设置权限
+echo "复制脚本到 $BASE_DIR..."
 for script in "${SCRIPTS[@]}"; do
     if [ ! -f "$script" ]; then
         echo "错误: 找不到脚本 $script"
         echo "请确保所有脚本在同一目录下"
         exit 1
     fi
-done
-
-# 复制脚本到目标目录
-echo "复制脚本到 $BASE_DIR..."
-for script in "${SCRIPTS[@]}"; do
     cp "$script" "$BASE_DIR/"
-done
-
-# 设置执行权限
-echo "设置执行权限..."
-for script in "${SCRIPTS[@]}"; do
     chmod +x "$BASE_DIR/$script"
 done
 

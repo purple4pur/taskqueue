@@ -56,18 +56,8 @@ tq_add() {
         return 1
     fi
 
-    # 获取当前工作目录
     local current_dir
-    current_dir=$(pwd) || {
-        echo -e "${RED}错误: 无法获取当前目录${NC}" >&2
-        return 1
-    }
-
-    # 验证当前目录安全
-    if [[ "$current_dir" =~ \.\. ]]; then
-        echo -e "${RED}错误: 当前目录路径包含非法字符${NC}" >&2
-        return 1
-    fi
+    current_dir=$(pwd)
 
     local command="$*"
 
@@ -115,14 +105,8 @@ tq_top() {
         return 1
     fi
 
-    # 验证参数是否为数字
-    if ! [[ "$n" =~ ^[0-9]+$ ]]; then
-        echo -e "${RED}错误: 任务编号必须是数字${NC}" >&2
-        return 1
-    fi
-
-    if [ "$n" -le 0 ]; then
-        echo -e "${RED}错误: 任务编号必须大于0${NC}" >&2
+    if ! [[ "$n" =~ ^[0-9]+$ ]] || [ "$n" -le 0 ]; then
+        echo -e "${RED}错误: 任务编号必须是正整数${NC}" >&2
         return 1
     fi
 
@@ -133,99 +117,46 @@ tq_top() {
         return 0
     fi
 
-    # 获取文件锁
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 创建临时文件
-    local temp_file
+    # Find the Nth waiting task line number
+    local line_num target_line first_waiting waiting_count temp_file
+    waiting_count=$(grep -c '^\[ \] ' "$JOBS_FILE")
+
+    if [ "$n" -gt "$waiting_count" ]; then
+        echo -e "${RED}错误: 只有 $waiting_count 个等待任务，无法移动第 $n 个${NC}" >&2
+        release_lock
+        return 1
+    fi
+
+    line_num=$(grep -n '^\[ \] ' "$JOBS_FILE" | sed -n "${n}{p;q}" | cut -d: -f1)
+    first_waiting=$(grep -n '^\[ \] ' "$JOBS_FILE" | head -1 | cut -d: -f1)
+
+    # Already first — nothing to do
+    if [ "$line_num" = "$first_waiting" ]; then
+        release_lock
+        echo -e "${GREEN}✓ 第 $n 个等待任务已在第一位${NC}"
+        echo ""
+        tq_list
+        return 0
+    fi
+
+    target_line=$(sed -n "${line_num}p" "$JOBS_FILE")
+
     temp_file=$(mktemp) || {
         echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
         release_lock
         return 1
     }
 
-    # 分离等待任务、已暂停任务、未知状态任务和其他状态任务
-    local other_tasks=()
-    local waiting_tasks=()
-    local paused_tasks=()
-    local unknown_tasks=()
-    local waiting_count=0
+    # Remove Nth waiting task, insert before the first waiting task
+    awk -v skip="$line_num" -v ins="$first_waiting" -v txt="$target_line" '
+NR == ins { print txt }
+NR != skip { print }
+' "$JOBS_FILE" > "$temp_file"
 
-    # 读取所有任务
-    while IFS= read -r line || [ -n "$line" ]; do
-        if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
-            # 等待任务
-            waiting_tasks+=("$line")
-            ((waiting_count++))
-        elif [[ "$line" =~ ^\[\?\] ]]; then
-            # 已暂停任务
-            paused_tasks+=("$line")
-        elif [[ "$line" =~ ^\[-\] ]] || [[ "$line" =~ ^\[x\] ]] || [[ "$line" =~ ^\[\!\] ]]; then
-            # 其他已知状态任务（运行中、成功、失败）
-            other_tasks+=("$line")
-        else
-            # 未知状态任务
-            unknown_tasks+=("$line")
-        fi
-    done < "$JOBS_FILE"
-
-    # 检查n是否有效
-    if [ "$n" -gt "$waiting_count" ]; then
-        echo -e "${RED}错误: 只有 $waiting_count 个等待任务，无法移动第 $n 个${NC}" >&2
-        rm -f "$temp_file"
-        release_lock
-        return 1
-    fi
-
-    # 重新排序等待任务
-    if [ "$waiting_count" -gt 0 ] && [ "$n" -le "$waiting_count" ]; then
-        # 找到要提前的任务
-        local target_task="${waiting_tasks[$((n-1))]}"
-
-        # 从数组中移除该任务
-        unset "waiting_tasks[$((n-1))]"
-
-        # 重新构建数组（移除空元素）
-        local new_waiting_tasks=()
-        for task in "${waiting_tasks[@]}"; do
-            if [ -n "$task" ]; then
-                new_waiting_tasks+=("$task")
-            fi
-        done
-        waiting_tasks=("${new_waiting_tasks[@]}")
-
-        # 将目标任务放到等待任务列表的最前面
-        waiting_tasks=("$target_task" "${waiting_tasks[@]}")
-    fi
-
-    # 写入临时文件：先写其他状态任务，再写等待任务，再写已暂停任务，最后写未知状态任务
-    for task in "${other_tasks[@]}"; do
-        echo "$task" >> "$temp_file"
-    done
-
-    for task in "${waiting_tasks[@]}"; do
-        echo "$task" >> "$temp_file"
-    done
-
-    for task in "${paused_tasks[@]}"; do
-        echo "$task" >> "$temp_file"
-    done
-
-    for task in "${unknown_tasks[@]}"; do
-        echo "$task" >> "$temp_file"
-    done
-
-    # 统计移动情况
-    local original_waiting_count="$waiting_count"
-    local new_waiting_count="${#waiting_tasks[@]}"
-
-    if [ "$original_waiting_count" -ne "$new_waiting_count" ]; then
-        echo -e "${YELLOW}警告: 等待任务数量发生变化 ($original_waiting_count -> $new_waiting_count)${NC}" >&2
-    fi
-
-    # 安全替换原文件
     mv "$temp_file" "$JOBS_FILE" || {
         echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
         release_lock
@@ -441,29 +372,11 @@ tq_clean() {
         return 1
     fi
 
-    # 安全过滤任务
-    local temp_file
-    temp_file=$(mktemp) || {
-        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
-        release_lock
-        return 1
-    }
-
-    # 只保留非完成状态的任务
-    grep -v "^\[[x!]\] " "$JOBS_FILE" > "$temp_file"
-
-    local original_count
-    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
-    local new_count
-    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
-    local removed=$((original_count - new_count))
-
-    # 安全替换原文件
-    mv "$temp_file" "$JOBS_FILE" || {
-        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
-        release_lock
-        return 1
-    }
+    local original_count new_count removed
+    original_count=$(wc -l < "$JOBS_FILE")
+    sed -i '/^\[[x!]\] /d' "$JOBS_FILE"
+    new_count=$(wc -l < "$JOBS_FILE")
+    removed=$((original_count - new_count))
 
     release_lock
 
@@ -483,34 +396,15 @@ tq_cleanall() {
         return 0
     fi
 
-    # 获取文件锁
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 安全过滤任务
-    local temp_file
-    temp_file=$(mktemp) || {
-        echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
-        release_lock
-        return 1
-    }
-
-    # 只保留运行中的任务
-    grep -v "^\[[ ?x!]\] " "$JOBS_FILE" > "$temp_file"
-
-    local original_count
-    original_count=$(wc -l < "$JOBS_FILE" 2>/dev/null || echo "0")
-    local new_count
-    new_count=$(wc -l < "$temp_file" 2>/dev/null || echo "0")
-    local removed=$((original_count - new_count))
-
-    # 安全替换原文件
-    mv "$temp_file" "$JOBS_FILE" || {
-        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
-        release_lock
-        return 1
-    }
+    local original_count new_count removed
+    original_count=$(wc -l < "$JOBS_FILE")
+    sed -i '/^\[[ ?x!]\] /d' "$JOBS_FILE"
+    new_count=$(wc -l < "$JOBS_FILE")
+    removed=$((original_count - new_count))
 
     release_lock
 

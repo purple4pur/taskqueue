@@ -8,7 +8,7 @@ QUEUE_DIR=$(dirname "$JOBS_FILE")
 
 while true; do
     if [ ! -f "$JOBS_FILE" ]; then
-        echo -e "${YELLOW}[R:$$] Tasks not found.${NC}"
+        echo -e "${YELLOW}[R:$$] Tasks not found.${NC}" >&2
         break
     fi
 
@@ -53,17 +53,11 @@ while true; do
 
     # Calculate elapsed time
     END=$(date +%s.%N)
-    ELAPSED=$(echo "$END - $START" | bc)
-    HOURS=$(echo "$ELAPSED/3600" | bc)
-    MINUTES=$(echo "($ELAPSED%3600)/60" | bc)
-    SECONDS=$(echo "$ELAPSED%60" | bc | awk '{printf "%.0f", $1}')
-    if [ $HOURS -gt 0 ]; then
-        ELAPSED="${HOURS}h${MINUTES}m${SECONDS}s"
-    elif [ $MINUTES -gt 0 ]; then
-        ELAPSED="${MINUTES}m${SECONDS}s"
-    else
-        ELAPSED="${SECONDS}s"
-    fi
+    ELAPSED=$(echo "$END - $START" | bc | awk '
+        {h=int($1/3600);m=int(($1%3600)/60);s=$1%60
+         if(h) printf "%dh%dm%.0fs",h,m,s
+         else if(m) printf "%dm%.0fs",m,s
+         else printf "%.0fs",s}')
 
     # Acquire file lock
     if ! acquire_lock "$LOCK_FILE"; then
@@ -82,8 +76,8 @@ while true; do
         mv "$STDERR_FILE" "$STDERR_LOG"
         # Update the job status to failed with error log info
         sed -i "/R:$$/s#.*#[!] $SAFE_JOB_COMMAND [$START_DATE] [$ELAPSED] [$STATUS:$STDERR_LOG]#" "$JOBS_FILE"
-        echo -e "${RED}[R:$$] Job finished with code $STATUS. ${YELLOW}[$ELAPSED]${NC}"
-        echo -e "${RED}[R:$$] stderr log: $STDERR_LOG${NC}"
+        echo -e "${RED}[R:$$] Job finished with code $STATUS. ${YELLOW}[$ELAPSED]${NC}" >&2
+        echo -e "${RED}[R:$$] stderr log: $STDERR_LOG${NC}" >&2
     fi
 
     release_lock
