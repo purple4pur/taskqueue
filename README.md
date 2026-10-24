@@ -77,6 +77,16 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 3. 查看任务状态：
    `tq`
 
+### 测试
+
+零依赖的 shell 测试套件，每个用例都在临时 `HOME` 中安装并运行，不会影响本机队列：
+
+```bash
+bash tests/run.sh
+```
+
+失败时以非零码退出，并逐条列出失败的断言。
+
 ### 小贴士
 
 你可以多次调用 `tq run` 来增加并行度！
