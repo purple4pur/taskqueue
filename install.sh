@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 
 # ============================================
-# TaskQueue 任务队列系统 - 安装和配置脚本
+# TaskQueue installation and setup
 # ============================================
 
-set -e  # 遇到错误立即退出
+set -e  # stop at the first failure
 
 echo "开始安装 TaskQueue 任务队列系统..."
 echo ""
 
-# 基础目录
+# Install root
 BASE_DIR="$HOME/opt/taskqueue"
 SCRIPTS=("taskqueue.sh" "runner.sh" "common.sh")
 
-# 创建必要的目录
+# Create the install directory
 echo "创建目录结构..."
 mkdir -p "$BASE_DIR"
 
-# 复制脚本到目标目录并设置权限
+# Copy the scripts and mark them executable
 echo "复制脚本到 $BASE_DIR..."
 for script in "${SCRIPTS[@]}"; do
     if [ ! -f "$script" ]; then
@@ -29,7 +29,7 @@ for script in "${SCRIPTS[@]}"; do
     chmod +x "$BASE_DIR/$script"
 done
 
-# 创建任务文件（如果不存在）
+# Create the queue file when it is absent
 TASKS_FILE="$BASE_DIR/tasks.txt"
 if [ ! -f "$TASKS_FILE" ]; then
     echo "创建任务文件: $TASKS_FILE"
@@ -39,7 +39,7 @@ else
     echo "任务文件已存在: $TASKS_FILE"
 fi
 
-# 安装完成信息
+# Print setup instructions
 echo ""
 echo "==========================================="
 echo "TaskQueue 安装完成！"
@@ -56,7 +56,7 @@ echo ""
 echo "快速开始:"
 echo "1. 添加别名到您的 shell 配置:"
 echo "   echo 'alias tq=\"bash \$HOME/opt/taskqueue/taskqueue.sh\"' >> ~/.bashrc"
-echo "   echo 'alias tq=\"tq local\"' >> ~/.bashrc"
+echo "   echo 'alias tql=\"tq local\"' >> ~/.bashrc"
 echo "   source ~/.bashrc"
 echo ""
 echo "2. 添加一个测试任务:"

@@ -28,8 +28,6 @@ TaskQueue 的核心：队列 `tasks.txt` 和 Runner `runner.sh` 均基于 Maxime
 
 ### 安装 / 升级
 
-为了计算任务耗时，系统需安装 `bc` 。
-
 1. `git clone` 或下载本仓库到本地
 2. `bash ./install.sh` - 必要文件将会复制到 `$HOME/opt/taskqueue`
 3. `echo 'alias tq="bash $HOME/opt/taskqueue/taskqueue.sh"' >> ~/.bashrc`

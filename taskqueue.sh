@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# tq_list - 显示所有任务状态 {{{
+# tq_list - show every task with its status {{{
 tq_list() {
     echo -e "${CYAN}=== 任务队列状态 ($(date '+%Y-%m-%d %H:%M:%S')) ===${NC}"
     echo -e "${GREEN}文件: $JOBS_FILE${NC}"
@@ -11,18 +11,18 @@ tq_list() {
         return 0
     fi
 
-    # 读取并显示所有任务
+    # Walk the queue and render one row per record
     local queue_order=1
     local paused_order=1
     while IFS= read -r line || [ -n "$line" ]; do
         local status="未知"
 
-        # 解析任务状态
-        if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
-            status=$(printf "${CYAN}%3s${NC}" "Q$queue_order")
+        # Classify the record by its status prefix
+        if [[ "$line" == "[ ] "* ]]; then
+            printf -v status "${CYAN}%3s${NC}" "Q$queue_order"
             ((queue_order++))
-        elif [[ "$line" =~ ^\[\?\] ]]; then
-            status=$(printf "${MAGENTA}%3s${NC}" "P$paused_order")
+        elif [[ "$line" == "[?] "* ]]; then
+            printf -v status "${MAGENTA}%3s${NC}" "P$paused_order"
             ((paused_order++))
         elif [[ "$line" =~ ^\[-\] ]]; then
             status="${YELLOW}RUN${NC}"
@@ -34,21 +34,17 @@ tq_list() {
             status="${GRAY}UNK${NC}"
         fi
 
-        # 彩色输出开始时间、运行器ID、消耗时间
-        line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[R:[0-9]+\\])#\\${MAGENTA}\\1\\${NC} \\${YELLOW}\\2\\${NC}#")
-        line=$(echo "$line" | sed -E "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[[0-9hm]+s\\])#\\${MAGENTA}\\1\\${NC} \\${CYAN}\\2\\${NC}#")
-
-        # Highlight error log info for failed tasks [exit_code:log_path]
-        # Match [digits:path] where path ends with .log]
-        line=$(echo "$line" | sed -E "s#\\[([0-9]+):(.+\.log)\\]\$#\\${RED}[\\1:\\2]\\${NC}#")
-
-        # 显示任务信息
+        # Print the row
         echo -e "$status $line"
-    done < "$JOBS_FILE"
+    done < <(sed -E \
+        -e "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[R:[0-9]+\\])#\\${MAGENTA}\\1\\${NC} \\${YELLOW}\\2\\${NC}#" \
+        -e "s#(\\[[0-9/]{5} [0-9:]{5}\\]) (\\[[0-9hm]+s\\])#\\${MAGENTA}\\1\\${NC} \\${CYAN}\\2\\${NC}#" \
+        -e "s#\\[([0-9]+):(.+\.log)\\]\$#\\${RED}[\\1:\\2]\\${NC}#" \
+        "$JOBS_FILE")
 }
 #}}}
 
-# tq_add - 添加任务到队列 {{{
+# tq_add - append a task to the queue {{{
 tq_add() {
     if [ $# -eq 0 ]; then
         echo -e "${RED}错误: 请提供要运行的命令${NC}" >&2
@@ -61,18 +57,24 @@ tq_add() {
 
     local command="$*"
 
-    # 安全构建任务命令
+    # The queue stores one record per line, so reject embedded newlines
+    if [[ "$command" == *$'\n'* || "$command" == *$'\r'* ]]; then
+        echo -e "${RED}错误: 命令不能包含换行符${NC}" >&2
+        return 1
+    fi
+
+    # Prefix the command with the directory it was added from
     local safe_dir
-    safe_dir=$(safe_quote "$current_dir")
+    safe_dir=$(printf '%q' "$current_dir")
 
     local full_command="cd $safe_dir && $command"
 
-    # 获取文件锁以避免并发写入问题
+    # Take the queue lock so concurrent writers cannot interleave
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 安全写入任务文件
+    # Append one complete record
     echo "[ ] $full_command" >> "$JOBS_FILE" || {
         echo -e "${RED}错误: 无法写入任务文件${NC}" >&2
         release_lock
@@ -87,18 +89,18 @@ tq_add() {
 }
 #}}}
 
-# tq_run - 启动一个新的运行器 {{{
+# tq_run - start one runner {{{
 tq_run() {
     local tq_dir="$1"
     bash "$RUNNER_SCRIPT" "$tq_dir"
 }
 #}}}
 
-# tq_top - 将第 N 个等待任务提前到第一位 {{{
+# tq_top - move the Nth queued task to the front {{{
 tq_top() {
     local n="$1"
 
-    # 检查参数
+    # Validate the argument
     if [ -z "$n" ]; then
         echo -e "${RED}错误: 请指定任务编号${NC}" >&2
         echo "用法: tq top <任务编号>" >&2
@@ -145,19 +147,28 @@ tq_top() {
 
     target_line=$(sed -n "${line_num}p" "$JOBS_FILE")
 
-    temp_file=$(mktemp) || {
+    # Keep the scratch file beside the queue so mv replaces it atomically
+    temp_file=$(mktemp "$(dirname "$JOBS_FILE")/.tasks.XXXXXX") || {
         echo -e "${RED}错误: 无法创建临时文件${NC}" >&2
         release_lock
         return 1
     }
 
     # Remove Nth waiting task, insert before the first waiting task
-    awk -v skip="$line_num" -v ins="$first_waiting" -v txt="$target_line" '
-NR == ins { print txt }
+    # Pass the stored line through the environment so awk keeps escapes literal
+    if ! TARGET_LINE="$target_line" awk -v skip="$line_num" -v ins="$first_waiting" '
+NR == ins { print ENVIRON["TARGET_LINE"] }
 NR != skip { print }
-' "$JOBS_FILE" > "$temp_file"
+' "$JOBS_FILE" > "$temp_file"; then
+        rm -f "$temp_file"
+        echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
+        release_lock
+        return 1
+    fi
 
+    chmod --reference="$JOBS_FILE" "$temp_file"
     mv "$temp_file" "$JOBS_FILE" || {
+        rm -f "$temp_file"
         echo -e "${RED}错误: 无法更新任务文件${NC}" >&2
         release_lock
         return 1
@@ -172,18 +183,18 @@ NR != skip { print }
 }
 #}}}
 
-# tq_pause - 暂停第 N 个等待任务 {{{
+# tq_pause - pause the Nth queued task {{{
 tq_pause() {
     local n="$1"
 
-    # 检查参数
+    # Validate the argument
     if [ -z "$n" ]; then
         echo -e "${RED}错误: 请指定任务编号${NC}" >&2
         echo "用法: tq pause <任务编号>" >&2
         return 1
     fi
 
-    # 验证参数是否为数字
+    # Require a positive integer
     if ! [[ "$n" =~ ^[0-9]+$ ]]; then
         echo -e "${RED}错误: 任务编号必须是数字${NC}" >&2
         return 1
@@ -201,19 +212,19 @@ tq_pause() {
         return 0
     fi
 
-    # 获取文件锁
+    # Take the queue lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 读取所有任务
+    # Walk the queue to find the target
     local queue_num=0
     local line_num=0
     while IFS= read -r line || [ -n "$line" ]; do
         ((line_num++))
 
-        # 定位第 N 个等待任务并暂停
-        if [[ "$line" =~ ^\[[[:space:]]\] ]]; then
+        # Pause the Nth queued record
+        if [[ "$line" == "[ ] "* ]]; then
             ((queue_num++))
 
             if [ "$queue_num" -eq "$n" ]; then
@@ -238,7 +249,7 @@ tq_pause() {
 }
 #}}}
 
-# tq_pauseall - 暂停所有未开始的任务 {{{
+# tq_pauseall - pause every queued task {{{
 tq_pauseall() {
     echo -e "${CYAN}正在暂停未开始的任务...${NC}"
 
@@ -247,12 +258,12 @@ tq_pauseall() {
         return 0
     fi
 
-    # 获取文件锁
+    # Take the queue lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 更改未开始任务状态
+    # Flip every queued prefix to paused
     local unstarted=$(grep -Ec '^\[ \] ' "$JOBS_FILE")
     sed -Ei 's#^\[ \] #[?] #' "$JOBS_FILE"
 
@@ -265,18 +276,18 @@ tq_pauseall() {
 }
 #}}}
 
-# tq_resume - 恢复第 N 个暂停任务 {{{
+# tq_resume - resume the Nth paused task {{{
 tq_resume() {
     local n="$1"
 
-    # 检查参数
+    # Validate the argument
     if [ -z "$n" ]; then
         echo -e "${RED}错误: 请指定任务编号${NC}" >&2
         echo "用法: tq resume <任务编号>" >&2
         return 1
     fi
 
-    # 验证参数是否为数字
+    # Require a positive integer
     if ! [[ "$n" =~ ^[0-9]+$ ]]; then
         echo -e "${RED}错误: 任务编号必须是数字${NC}" >&2
         return 1
@@ -294,19 +305,19 @@ tq_resume() {
         return 0
     fi
 
-    # 获取文件锁
+    # Take the queue lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 读取所有任务
+    # Walk the queue to find the target
     local paused_num=0
     local line_num=0
     while IFS= read -r line || [ -n "$line" ]; do
         ((line_num++))
 
-        # 定位第 N 个暂停任务并恢复
-        if [[ "$line" =~ ^\[\?\] ]]; then
+        # Resume the Nth paused record
+        if [[ "$line" == "[?] "* ]]; then
             ((paused_num++))
 
             if [ "$paused_num" -eq "$n" ]; then
@@ -331,7 +342,7 @@ tq_resume() {
 }
 #}}}
 
-# tq_resumeall - 恢复所有已暂停的任务到队列 {{{
+# tq_resumeall - move every paused task back to the queue {{{
 tq_resumeall() {
     echo -e "${CYAN}正在恢复已暂停的任务...${NC}"
 
@@ -340,12 +351,12 @@ tq_resumeall() {
         return 0
     fi
 
-    # 获取文件锁
+    # Take the queue lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 更改已暂停任务状态
+    # Flip every paused prefix back to queued
     local paused=$(grep -Ec '^\[\?\] ' "$JOBS_FILE")
     sed -Ei 's#^\[\?\] #[ ] #' "$JOBS_FILE"
 
@@ -358,7 +369,7 @@ tq_resumeall() {
 }
 #}}}
 
-# tq_clean - 清空已结束的任务 {{{
+# tq_clean - delete finished tasks {{{
 tq_clean() {
     echo -e "${CYAN}正在清空已结束的任务...${NC}"
 
@@ -367,16 +378,14 @@ tq_clean() {
         return 0
     fi
 
-    # 获取文件锁
+    # Take the queue lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    local original_count new_count removed
-    original_count=$(wc -l < "$JOBS_FILE")
+    local removed
+    removed=$(grep -c '^\[[x!]\] ' "$JOBS_FILE" || true)
     sed -i '/^\[[x!]\] /d' "$JOBS_FILE"
-    new_count=$(wc -l < "$JOBS_FILE")
-    removed=$((original_count - new_count))
 
     release_lock
 
@@ -387,7 +396,7 @@ tq_clean() {
 }
 #}}}
 
-# tq_cleanall - 清空所有非运行中的任务 {{{
+# tq_cleanall - delete every task that is not running {{{
 tq_cleanall() {
     echo -e "${CYAN}正在清空所有非运行中的任务...${NC}"
 
@@ -400,11 +409,9 @@ tq_cleanall() {
         return 1
     fi
 
-    local original_count new_count removed
-    original_count=$(wc -l < "$JOBS_FILE")
+    local removed
+    removed=$(grep -c '^\[[ ?x!]\] ' "$JOBS_FILE" || true)
     sed -i '/^\[[ ?x!]\] /d' "$JOBS_FILE"
-    new_count=$(wc -l < "$JOBS_FILE")
-    removed=$((original_count - new_count))
 
     release_lock
 
@@ -415,23 +422,23 @@ tq_cleanall() {
 }
 #}}}
 
-# tq_reset - 重置所有非运行中的任务到队列 {{{
+# tq_reset - requeue every task that is not running {{{
 tq_reset() {
     if [ ! -f "$JOBS_FILE" ]; then
         echo -e "${YELLOW}任务文件不存在或为空${NC}"
         return 0
     fi
 
-    # 获取文件锁
+    # Take the queue lock
     if ! acquire_lock "$LOCK_FILE"; then
         return 1
     fi
 
-    # 重置所有非运行中任务
+    # Requeue finished and paused records
     local changed=$(grep -Ec '^\[[?x!]\] ' "$JOBS_FILE")
+    # Strip timing fields only from finished records; queued commands stay untouched
+    sed -Ei 's#^(\[[?x!]\] .*) \[[0-9/]{5} [0-9:]{5}\] \[[0-9hms]*\]( \[[0-9]+:.+\.log\])?$#\1#' "$JOBS_FILE"
     sed -Ei 's#^\[[?x!]\] #[ ] #' "$JOBS_FILE"
-    # Remove timing info and error log info: [date] [elapsed] or [date] [elapsed] [exit:log]
-    sed -Ei 's# \[[0-9/]{5} [0-9:]{5}\] \[[0-9hm]+s\]( \[[0-9]+:.+\.log\])?$##' "$JOBS_FILE"
 
     release_lock
 
@@ -445,18 +452,18 @@ tq_reset() {
 # tq_rerun - reset + run {{{
 tq_rerun() {
     local tq_dir="$1"
-    tq_reset
+    tq_reset || return 1
     tq_run "$tq_dir"
 }
 #}}}
 
-# tq_file - 显示队列文件路径 {{{
+# tq_file - print the queue file path {{{
 tq_file() {
     echo "$JOBS_FILE"
 }
 #}}}
 
-# tq_edit - 用编辑器打开任务文件 {{{
+# tq_edit - open the queue file in $EDITOR {{{
 tq_edit() {
     if [ -z "$EDITOR" ]; then
         echo -e "${RED}错误: 未设置 EDITOR 环境变量${NC}" >&2
@@ -476,7 +483,7 @@ tq_edit() {
 }
 #}}}
 
-# tq_help - 显示帮助信息 {{{
+# tq_help - print usage {{{
 tq_help() {
     echo -e "${CYAN}=== TaskQueue (tq) ===${NC}"
     echo ""
@@ -515,13 +522,13 @@ tq_help() {
 }
 #}}}
 
-# main - 主函数 {{{
+# main - dispatch the subcommand {{{
 main() {
     if [ "$1" == "local" ]; then
         shift
         readonly TQ_DIR="$PWD"
     fi
-    source $HOME/opt/taskqueue/common.sh
+    source "$HOME/opt/taskqueue/common.sh"
 
     local command="$1"
     case "$command" in
@@ -583,7 +590,7 @@ main() {
 }
 #}}}
 
-# 如果直接运行脚本，执行主函数
+# Run main only when the script is executed, not sourced
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     main "$@"
 fi
