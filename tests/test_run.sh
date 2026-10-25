@@ -60,6 +60,26 @@ run_runner >/dev/null 2>"$SANDBOX/err"
 assert_contains "replays task stderr" "noisy" "$(cat "$SANDBOX/err")"
 
 set_queue
+run_tq add 'echo early >&2; sleep 2; echo late >&2' >/dev/null
+run_runner >"$SANDBOX/out" 2>"$SANDBOX/live.err" &
+live_pid=$!
+for _ in $(seq 1 50); do
+    grep -q early "$SANDBOX/live.err" 2>/dev/null && break
+    sleep 0.1
+done
+assert_file_contains "streams task stderr while it runs" "early" "$SANDBOX/live.err"
+assert_not_contains "does not defer stderr until the task exits" "late" "$(cat "$SANDBOX/live.err")"
+wait "$live_pid"
+assert_file_contains "streams the tail before recording the result" "late" "$SANDBOX/live.err"
+
+set_queue
+run_tq add 'sleep 3 & echo done >&2' >/dev/null
+out=$(run_runner 2>"$SANDBOX/daemon.err")
+assert_eq "finishes when a child keeps stderr open" 0 "$?"
+assert_contains "relays stderr before killing the relay" "done" "$(cat "$SANDBOX/daemon.err")"
+assert_queue_count "records such a task as successful" '^\[x\] ' 1
+
+set_queue
 for i in $(seq 1 20); do
     run_tq add "echo t$i >> $SANDBOX/runs" >/dev/null
 done
@@ -76,7 +96,7 @@ assert_eq "parallel runners never time out on the lock" 0 "$(cat "$SANDBOX/r1" "
 
 # Elapsed time must not depend on bc.
 mkdir -p "$SANDBOX/bin"
-for cmd in bash date awk sed grep cut mktemp mv rm chmod dirname tr flock cat wc sort head tail ln seq; do
+for cmd in bash date awk sed grep cut mktemp mkfifo mv rm chmod dirname tr flock cat wc sort head tail ln seq tee sleep; do
     if command -v "$cmd" >/dev/null; then
         ln -sf "$(command -v "$cmd")" "$SANDBOX/bin/$cmd"
     fi

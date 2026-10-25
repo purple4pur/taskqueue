@@ -6,6 +6,13 @@ source "$HOME/opt/taskqueue/common.sh"
 # Derive the actual queue directory from JOBS_FILE (handles global mode where TQ_DIR is empty)
 QUEUE_DIR=$(dirname "$JOBS_FILE")
 
+# Drop the stderr relay even when the runner is interrupted mid-task
+cleanup_stderr_relay() {
+    [ -n "${TEE_PID:-}" ] && kill "$TEE_PID" 2>/dev/null
+    [ -n "${STDERR_DIR:-}" ] && rm -rf "$STDERR_DIR"
+}
+trap cleanup_stderr_relay EXIT
+
 while true; do
     if [ ! -f "$JOBS_FILE" ]; then
         echo -e "${YELLOW}[R:$$] Tasks not found.${NC}" >&2
@@ -47,13 +54,25 @@ while true; do
     # Record start time
     START=$(date +%s.%N)
 
-    # Capture stderr to a temp file
+    # Relay stderr to the terminal while keeping a copy for the failure log
     STDERR_FILE=$(mktemp)
+    STDERR_DIR=$(mktemp -d)
+    mkfifo "$STDERR_DIR/fifo"
+    tee "$STDERR_FILE" <"$STDERR_DIR/fifo" >&2 &
+    TEE_PID=$!
 
-    # Write stderr to disk first, then replay it after the task exits
-    bash -c "$JOB_COMMAND" 2>"$STDERR_FILE"
+    bash -c "$JOB_COMMAND" 2>"$STDERR_DIR/fifo"
     STATUS=$?
-    cat "$STDERR_FILE" >&2
+
+    # Drain the relay so the log is complete before recording the result, but cap
+    # the wait: a task that leaves a child holding stderr open must not stall us
+    ( sleep 2; kill "$TEE_PID" 2>/dev/null ) &
+    WATCHDOG_PID=$!
+    wait "$TEE_PID" 2>/dev/null
+    kill "$WATCHDOG_PID" 2>/dev/null
+    wait "$WATCHDOG_PID" 2>/dev/null
+    rm -rf "$STDERR_DIR"
+    STDERR_DIR=
 
     # Calculate elapsed time
     END=$(date +%s.%N)
